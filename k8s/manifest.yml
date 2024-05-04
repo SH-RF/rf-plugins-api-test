@@ -48,41 +48,11 @@ spec:
         env:
         - name: SPRING_PROFILES_ACTIVE
           value: #{Env}#
-        - name: spring.datasource.username
-          valueFrom:
-            secretKeyRef:
-              name: remote-falcon-plugins-api
-              key: mysql-user
-        - name: spring.datasource.password
-          valueFrom:
-            secretKeyRef:
-              name: remote-falcon-plugins-api
-              key: mysql-pass
         - name: spring.data.mongodb.uri
           valueFrom:
             secretKeyRef:
               name: remote-falcon-plugins-api
               key: mongo-uri
-        - name: github.pat
-          valueFrom:
-            secretKeyRef:
-              name: remote-falcon-plugins-api
-              key: github-pat
-        - name: sendgrid.key
-          valueFrom:
-            secretKeyRef:
-              name: remote-falcon-plugins-api
-              key: sendgrid-key
-        - name: jwt.user
-          valueFrom:
-            secretKeyRef:
-              name: remote-falcon-plugins-api
-              key: jwt-user
-        - name: jwt.viewer
-          valueFrom:
-            secretKeyRef:
-              name: remote-falcon-plugins-api
-              key: jwt-viewer
         - name: DD_ENV
           valueFrom:
             fieldRef:
