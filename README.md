@@ -1,2 +1,1 @@
-# remote-falcon-plugins-api
-Remote Falcon Plugins API
+# Remote Falcon Plugins API
