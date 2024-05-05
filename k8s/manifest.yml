@@ -115,3 +115,13 @@ spec:
             name: #{Application}#
             port:
               number: 8080
+  - host: #{Host}#
+    http:
+      paths:
+        - pathType: Prefix
+          path: /remotefalcon/api
+          backend:
+            service:
+              name: #{Application}#
+              port:
+                number: 8080
