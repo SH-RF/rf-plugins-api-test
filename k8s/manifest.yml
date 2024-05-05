@@ -65,19 +65,19 @@ spec:
           value: "true"
         startupProbe:
           httpGet:
-            path: /remote-falcon-plugins-api/actuator/health
+            path: /remotefalcon/api/actuator/health
             port: 8080
           failureThreshold: 60
         livenessProbe:
           httpGet:
-            path: /remote-falcon-plugins-api/actuator/health
+            path: /remotefalcon/api/actuator/health
             port: 8080
           initialDelaySeconds: 0
           timeoutSeconds: 10
           failureThreshold: 60
         readinessProbe:
           httpGet:
-            path: /remote-falcon-plugins-api/actuator/health
+            path: /remotefalcon/api/actuator/health
             port: 8080
           failureThreshold: 60
           initialDelaySeconds: 0
