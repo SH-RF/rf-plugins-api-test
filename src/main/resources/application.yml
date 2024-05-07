@@ -7,8 +7,6 @@ spring:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
 
 server:
-  servlet:
-    contextPath: /remotefalcon/api
   port: 8080
 
 info:
