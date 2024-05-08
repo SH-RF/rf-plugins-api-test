@@ -103,21 +103,21 @@ metadata:
   namespace: #{Namespace}#
   annotations:
     kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   rules:
   - host: #{Host}#
     http:
       paths:
       - pathType: Prefix
-        path: /remote-falcon-plugins-api
+        path: /remote-falcon-plugins-api/*
         backend:
           service:
             name: #{Application}#
             port:
               number: 8080
       - pathType: Prefix
-        path: /remotefalcon/api
+        path: /remotefalcon/api/*
         backend:
           service:
             name: #{Application}#
