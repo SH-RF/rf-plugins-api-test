@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -181,7 +182,8 @@ public class PluginService {
                     show.getPsaSequences().get(show.getPsaSequences().indexOf(nextPsaSequence.get())).setLastPlayed(LocalDateTime.now());
                     if(show.getPreferences().getViewerControlMode() == ViewerControlMode.JUKEBOX) {
                         sequenceToAdd.ifPresent(sequence -> this.setPSASequenceRequest(show, sequence));
-
+                    }else if(show.getPreferences().getViewerControlMode() == ViewerControlMode.VOTING) {
+                        //Voting for Managed PSA
                     }
                 }
             }
@@ -258,6 +260,149 @@ public class PluginService {
                 .playlistIndex(-1)
                 .updateQueue(updateQueue)
                 .build());
+    }
+
+    public ResponseEntity<HighestVotedPlaylistResponse> highestVotedPlaylist() {
+        String showToken = this.authUtil.showToken;
+        Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
+        HighestVotedPlaylistResponse response = HighestVotedPlaylistResponse.builder()
+                .winningPlaylist(null)
+                .playlistIndex(-1)
+                .build();
+        if(optionalShow.isPresent()) {
+            Show show = optionalShow.get();
+            //Check if PSA needs to be played
+
+            //Update visibility counts
+            List<Sequence> sequences = show.getSequences().stream().peek(sequence -> {
+                if(sequence.getVisibilityCount() > 0) {
+                    sequence.setVisibilityCount(sequence.getVisibilityCount() - 1);
+                }
+            }).toList();
+            List<SequenceGroup> sequenceGroups = show.getSequenceGroups().stream().peek(sequenceGroup -> {
+                if(sequenceGroup.getVisibilityCount() > 0) {
+                    sequenceGroup.setVisibilityCount(sequenceGroup.getVisibilityCount() - 1);
+                }
+            }).toList();
+
+            show.setSequences(sequences);
+            show.setSequenceGroups(sequenceGroups);
+
+            //Get the sequence with the most votes. If there is a tie, get the sequence with the earliest vote time
+            Optional<Vote> winningVote = show.getVotes().stream()
+                    .max(Comparator.comparing(Vote::getVotes)
+                            .thenComparing(Comparator.comparing(Vote::getLastVoteTime).reversed()));
+            if(winningVote.isPresent()) {
+                SequenceGroup winningSequenceGroup = winningVote.get().getSequenceGroup();
+                if(winningSequenceGroup != null) {
+                    return ResponseEntity.status(200).body(this.processWinningGroup(winningVote.get(), show));
+                }else {
+                    return ResponseEntity.status(200).body(this.processWinningVote(winningVote.get(), show));
+                }
+            }
+            this.showRepository.save(show);
+            return ResponseEntity.status(200).body(response);
+        }
+        return ResponseEntity.status(400).body(response);
+    }
+
+    private HighestVotedPlaylistResponse processWinningGroup(Vote winningVote, Show show) {
+        SequenceGroup winningSequenceGroup = winningVote.getSequenceGroup();
+        show.getVotes().remove(winningVote);
+
+        if(winningSequenceGroup != null) {
+            Optional<SequenceGroup> actualSequenceGroup = show.getSequenceGroups().stream()
+                    .filter(sequenceGroup -> StringUtils.equalsIgnoreCase(sequenceGroup.getName(), winningSequenceGroup.getName()))
+                    .findFirst();
+
+            if(actualSequenceGroup.isPresent()) {
+                show.getStats().getVotingWin().add(Stat.VotingWin.builder()
+                        .name(actualSequenceGroup.get().getName())
+                        .dateTime(LocalDateTime.now())
+                        .build());
+
+                //Set visibility counts
+                if(show.getPreferences().getHideSequenceCount() != 0) {
+                    actualSequenceGroup.get().setVisibilityCount(show.getPreferences().getHideSequenceCount());
+                }
+
+                List<Sequence> sequencesInGroup = new ArrayList<>(show.getSequences().stream()
+                        .filter(sequence -> StringUtils.equalsIgnoreCase(actualSequenceGroup.get().getName(), sequence.getGroup()))
+                        .toList());
+
+                int voteCount = 1098;
+
+                Vote updatedWinningVote = Vote.builder()
+                        .votes(voteCount)
+                        .lastVoteTime(LocalDateTime.now())
+                        .ownerVoted(false)
+                        .sequence(sequencesInGroup.get(0))
+                        .build();
+                voteCount--;
+
+                sequencesInGroup.remove(0);
+
+                List<Vote> sequencesInGroupVotes = new ArrayList<>();
+                for(Sequence groupedSequence : sequencesInGroup) {
+                    sequencesInGroupVotes.add(Vote.builder()
+                            .votes(voteCount)
+                            .lastVoteTime(LocalDateTime.now())
+                            .ownerVoted(false)
+                            .sequence(groupedSequence)
+                            .build());
+                    voteCount--;
+                }
+                show.getVotes().addAll(sequencesInGroupVotes);
+                return this.processWinningVote(updatedWinningVote, show);
+            }
+        }
+        return null;
+    }
+
+    private HighestVotedPlaylistResponse processWinningVote(Vote winningVote, Show show) {
+        Sequence winningSequence = winningVote.getSequence();
+        show.getVotes().remove(winningVote);
+
+        if(winningSequence != null) {
+            Optional<Sequence> actualSequence = show.getSequences().stream()
+                    .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), winningSequence.getName()))
+                    .findFirst();
+
+            if(actualSequence.isPresent()) {
+                boolean noGroupedSequencesHaveVotes = show.getVotes().stream()
+                        .noneMatch(vote -> vote.getSequence() == null || StringUtils.isNotEmpty(vote.getSequence().getGroup()));
+
+                //Vote resets should only happen if there are no grouped sequences with active votes
+                if(noGroupedSequencesHaveVotes) {
+                    //Reset votes
+                    if(show.getPreferences().getResetVotes()) {
+                        show.getVotes().clear();
+                    }
+                }
+
+                //Set visibility counts
+                if(show.getPreferences().getHideSequenceCount() != 0 && StringUtils.isEmpty(actualSequence.get().getGroup())) {
+                    actualSequence.get().setVisibilityCount(show.getPreferences().getHideSequenceCount());
+                }
+
+                //Only save stats for non-grouped sequences
+                if(StringUtils.isEmpty(actualSequence.get().getGroup())) {
+                    show.getStats().getVotingWin().add(Stat.VotingWin.builder()
+                            .name(actualSequence.get().getName())
+                            .dateTime(LocalDateTime.now())
+                            .build());
+                }
+
+                this.showRepository.save(show);
+
+                //Return winning sequence
+                return HighestVotedPlaylistResponse.builder()
+                        .winningPlaylist(actualSequence.get().getName())
+                        .playlistIndex(actualSequence.get().getIndex())
+                        .build();
+            }
+        }
+        return null;
     }
 
     private void updateVisibilityCounts(Show show, Request request) {

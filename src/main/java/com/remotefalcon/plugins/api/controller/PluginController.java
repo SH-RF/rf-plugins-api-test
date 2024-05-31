@@ -49,11 +49,11 @@ public class PluginController {
     return this.pluginService.viewerControlMode();
   }
 
-//  @GetMapping(value = "/highestVotedPlaylist")
-//  @RequiresAccess
-//  public ResponseEntity<HighestVotedPlaylistResponse> highestVotedPlaylist() {
-//    return this.pluginService.highestVotedPlaylist();
-//  }
+  @GetMapping(value = "/highestVotedPlaylist")
+  @RequiresAccess
+  public ResponseEntity<HighestVotedPlaylistResponse> highestVotedPlaylist() {
+    return this.pluginService.highestVotedPlaylist();
+  }
 
   @PostMapping(value = "/pluginVersion")
   @RequiresAccess
