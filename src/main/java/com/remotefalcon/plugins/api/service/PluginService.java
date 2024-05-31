@@ -140,6 +140,9 @@ public class PluginService {
             Show show = optionalShow.get();
             show.setPlayingNow(request.getPlaylist());
             int sequencesPlayed = show.getPreferences().getSequencesPlayed();
+            Optional<Sequence> whatsPlayingSequence = show.getSequences().stream()
+                    .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), request.getPlaylist()))
+                    .findFirst();
             Optional<PsaSequence> psaSequence = show.getPsaSequences().stream()
                     .filter(psa -> StringUtils.equalsIgnoreCase(psa.getName(), request.getPlaylist()))
                     .findFirst();
@@ -147,6 +150,9 @@ public class PluginService {
                 sequencesPlayed = 0;
             }else {
                 sequencesPlayed++;
+            }
+            if(whatsPlayingSequence.isPresent() && StringUtils.isEmpty(whatsPlayingSequence.get().getGroup())) {
+                sequencesPlayed--;
             }
             show.getPreferences().setSequencesPlayed(sequencesPlayed);
 
@@ -156,6 +162,13 @@ public class PluginService {
                             sequence.setVisibilityCount(sequence.getVisibilityCount() - 1);
                         }
             }).toList());
+
+            show.setSequenceGroups(show.getSequenceGroups().stream()
+                    .peek(sequenceGroup -> {
+                        if(sequenceGroup.getVisibilityCount() > 0) {
+                            sequenceGroup.setVisibilityCount(sequenceGroup.getVisibilityCount() - 1);
+                        }
+                    }).toList());
 
             //Managed PSA
             this.handleManagedPSA(sequencesPlayed, show);
@@ -175,7 +188,9 @@ public class PluginService {
                 Optional<PsaSequence> nextPsaSequence = show.getPsaSequences().stream()
                         .min(Comparator.comparing(PsaSequence::getLastPlayed)
                                 .thenComparing(PsaSequence::getOrder));
-                if(nextPsaSequence.isPresent()) {
+                boolean isPSAPlayingNow = show.getPsaSequences().stream()
+                        .anyMatch(psaSequence -> StringUtils.equalsIgnoreCase(show.getPlayingNow(), psaSequence.getName()));
+                if(nextPsaSequence.isPresent() && !isPSAPlayingNow) {
                     Optional<Sequence> sequenceToAdd = show.getSequences().stream()
                             .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), nextPsaSequence.get().getName()))
                             .findFirst();
@@ -183,7 +198,7 @@ public class PluginService {
                     if(show.getPreferences().getViewerControlMode() == ViewerControlMode.JUKEBOX) {
                         sequenceToAdd.ifPresent(sequence -> this.setPSASequenceRequest(show, sequence));
                     }else if(show.getPreferences().getViewerControlMode() == ViewerControlMode.VOTING) {
-                        //Voting for Managed PSA
+                        sequenceToAdd.ifPresent(sequence -> this.setPSASequenceVote(show, sequence));
                     }
                 }
             }
@@ -196,7 +211,15 @@ public class PluginService {
                 .ownerRequested(false)
                 .position(0)
                 .build());
-//        this.updatePlayingNext(show);
+        this.showRepository.save(show);
+    }
+
+    private void setPSASequenceVote(Show show, Sequence requestedSequence) {
+        show.getVotes().add(Vote.builder()
+                .sequence(requestedSequence)
+                .ownerVoted(false)
+                .votes(2000)
+                .build());
         this.showRepository.save(show);
     }
 
@@ -241,12 +264,6 @@ public class PluginService {
 
             show.getRequests().remove(nextRequest.get());
 
-//            if(show.getRequests().isEmpty()) {
-//                show.setPlayingNext(null);
-//            }else {
-//                show.setPlayingNext(show.getRequests().get(0).getSequence().getDisplayName());
-//            }
-
             this.showRepository.save(show);
 
             return ResponseEntity.status(200).body(NextPlaylistResponse.builder()
@@ -271,7 +288,6 @@ public class PluginService {
                 .build();
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
-            //Check if PSA needs to be played
 
             //Update visibility counts
             List<Sequence> sequences = show.getSequences().stream().peek(sequence -> {
@@ -330,7 +346,7 @@ public class PluginService {
                         .filter(sequence -> StringUtils.equalsIgnoreCase(actualSequenceGroup.get().getName(), sequence.getGroup()))
                         .toList());
 
-                int voteCount = 1098;
+                int voteCount = 2099;
 
                 Vote updatedWinningVote = Vote.builder()
                         .votes(voteCount)
@@ -364,6 +380,8 @@ public class PluginService {
         show.getVotes().remove(winningVote);
 
         if(winningSequence != null) {
+            boolean isPSA = show.getPsaSequences().stream()
+                    .anyMatch(psaSequence -> StringUtils.equalsIgnoreCase(psaSequence.getName(), winningSequence.getName()));
             Optional<Sequence> actualSequence = show.getSequences().stream()
                     .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), winningSequence.getName()))
                     .findFirst();
@@ -386,11 +404,37 @@ public class PluginService {
                 }
 
                 //Only save stats for non-grouped sequences
-                if(StringUtils.isEmpty(actualSequence.get().getGroup())) {
+                if(StringUtils.isEmpty(actualSequence.get().getGroup()) && !isPSA) {
                     show.getStats().getVotingWin().add(Stat.VotingWin.builder()
                             .name(actualSequence.get().getName())
                             .dateTime(LocalDateTime.now())
                             .build());
+                }
+
+                if(show.getPreferences().getPsaEnabled() && !show.getPreferences().getManagePsa()
+                        && !show.getPsaSequences().isEmpty() && StringUtils.isEmpty(actualSequence.get().getGroup())) {
+                    Integer voteWinsToday = show.getStats().getVotingWin().stream()
+                            .filter(stat -> stat.getDateTime().isAfter(LocalDateTime.now().withHour(0).withMinute(0).withSecond(0)))
+                            .toList()
+                            .size();
+                    boolean isPSAPlayingNow = show.getPsaSequences().stream()
+                            .anyMatch(psaSequence -> StringUtils.equalsIgnoreCase(show.getPlayingNow(), psaSequence.getName()));
+                    if(voteWinsToday % show.getPreferences().getPsaFrequency() == 0 && !isPSAPlayingNow) {
+                        Optional<PsaSequence> nextPsaSequence = show.getPsaSequences().stream()
+                                .min(Comparator.comparing(PsaSequence::getLastPlayed)
+                                        .thenComparing(PsaSequence::getOrder));
+                        if(nextPsaSequence.isPresent()) {
+                            Optional<Sequence> sequenceToAdd = show.getSequences().stream()
+                                    .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), nextPsaSequence.get().getName()))
+                                    .findFirst();
+                            show.getPsaSequences().get(show.getPsaSequences().indexOf(nextPsaSequence.get())).setLastPlayed(LocalDateTime.now());
+                            sequenceToAdd.ifPresent(sequence -> show.getVotes().add(Vote.builder()
+                                    .sequence(sequence)
+                                    .ownerVoted(false)
+                                    .votes(2000)
+                                    .build()));
+                        }
+                    }
                 }
 
                 this.showRepository.save(show);
@@ -505,6 +549,19 @@ public class PluginService {
             show.get().getPreferences().setViewerControlEnabled(StringUtils.equalsIgnoreCase("Y", request.getViewerControlEnabled()));
             this.showRepository.save(show.get());
             return ResponseEntity.status(200).body(PluginResponse.builder().viewerControlEnabled(StringUtils.equalsIgnoreCase("Y", request.getViewerControlEnabled())).build());
+        }
+        return ResponseEntity.status(400).body(PluginResponse.builder()
+                .message("Show not found")
+                .build());
+    }
+
+    public ResponseEntity<PluginResponse> updateManagedPsa(ManagedPSARequest request) {
+        String showToken = this.authUtil.showToken;
+        Optional<Show> show = this.showRepository.findByShowToken(showToken);
+        if(show.isPresent()) {
+            show.get().getPreferences().setManagePsa(StringUtils.equalsIgnoreCase("Y", request.getManagedPsaEnabled()));
+            this.showRepository.save(show.get());
+            return ResponseEntity.status(200).body(PluginResponse.builder().managedPsaEnabled(StringUtils.equalsIgnoreCase("Y", request.getManagedPsaEnabled())).build());
         }
         return ResponseEntity.status(400).body(PluginResponse.builder()
                 .message("Show not found")

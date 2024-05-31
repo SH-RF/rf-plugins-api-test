@@ -91,9 +91,9 @@ public class PluginController {
     return this.pluginService.updateViewerControl(request);
   }
 
-//  @PostMapping(value = "/updateManagedPsa")
-//  @RequiresAccess
-//  public ResponseEntity<PluginResponse> updateManagedPsa(@RequestBody ManagedPSARequest request) {
-//    return this.pluginService.updateManagedPsa(request);
-//  }
+  @PostMapping(value = "/updateManagedPsa")
+  @RequiresAccess
+  public ResponseEntity<PluginResponse> updateManagedPsa(@RequestBody ManagedPSARequest request) {
+    return this.pluginService.updateManagedPsa(request);
+  }
 }

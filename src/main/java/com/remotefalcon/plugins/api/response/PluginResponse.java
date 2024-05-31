@@ -15,4 +15,5 @@ public class PluginResponse {
   private String nextScheduledSequence;
   private String viewerControlMode;
   private Boolean viewerControlEnabled;
+  private Boolean managedPsaEnabled;
 }
