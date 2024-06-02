@@ -60,12 +60,12 @@ jobs:
           Namespace: remote-falcon-test
           Application: remote-falcon-plugins-api
           Env: test
-          Replicas: 1
+          Replicas: 2
           Image: ${{ env.REGISTRY }}/${{ steps.repository_string.outputs.lowercase }}:${{ github.sha }}
-          Requests.Memory: 500Mi
-          Requests.CPU: 250m
-          Limits.Memory: 750Mi
-          Limits.CPU: 500m
+          Requests.Memory: 1000Mi
+          Requests.CPU: 500m
+          Limits.Memory: 1250Mi
+          Limits.CPU: 750m
           Host: remotefalcon.dev
 
       - name: Install doctl
