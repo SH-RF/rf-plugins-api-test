@@ -26,6 +26,6 @@ public class AccessAspect {
     if(!StringUtils.isEmpty(remoteToken)) {
       return proceedingJoinPoint.proceed();
     }
-    throw new RuntimeException(StatusResponse.INVALID_JWT.name());
+    return null;
   }
 }
