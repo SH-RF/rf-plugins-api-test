@@ -183,7 +183,7 @@ public class PluginService {
     }
 
     private void handleManagedPSA(int sequencesPlayed, Show show) {
-        if(sequencesPlayed != 0 && show.getPreferences().getPsaEnabled() && show.getPreferences().getManagePsa()) {
+        if(sequencesPlayed != 0 && show.getPreferences().getPsaEnabled() && show.getPreferences().getManagePsa() && show.getPreferences().getPsaFrequency() > 0) {
             if(sequencesPlayed % show.getPreferences().getPsaFrequency() == 0) {
                 Optional<PsaSequence> nextPsaSequence = show.getPsaSequences().stream()
                         .min(Comparator.comparing(PsaSequence::getLastPlayed)
