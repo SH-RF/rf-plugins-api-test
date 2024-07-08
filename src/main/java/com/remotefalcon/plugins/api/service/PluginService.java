@@ -253,7 +253,7 @@ public class PluginService {
                 .build();
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
-            if(CollectionUtils.isEmpty(show.get().getRequests())) {
+            if(CollectionUtils.isEmpty(show.getRequests())) {
                 return ResponseEntity.status(200).body(defaultResponse);
             }
             Optional<Request> nextRequest = show.getRequests().stream().min(Comparator.comparing(Request::getPosition));
