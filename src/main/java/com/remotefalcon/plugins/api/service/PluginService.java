@@ -53,7 +53,7 @@ public class PluginService {
 
             List<PsaSequence> updatedPsaSequences = this.updatePsaSequences(request, show.get());
             show.get().setPsaSequences(updatedPsaSequences);
-            if(updatedPsaSequences.isEmpty()) {
+            if(CollectionUtils.isEmpty(updatedPsaSequences)) {
                 show.get().getPreferences().setPsaEnabled(false);
             }
 
@@ -253,7 +253,7 @@ public class PluginService {
                 .build();
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
-            if(show.getRequests().isEmpty()) {
+            if(CollectionUtils.isEmpty(show.get().getRequests())) {
                 return ResponseEntity.status(200).body(defaultResponse);
             }
             Optional<Request> nextRequest = show.getRequests().stream().min(Comparator.comparing(Request::getPosition));
@@ -412,7 +412,7 @@ public class PluginService {
                 }
 
                 if(show.getPreferences().getPsaEnabled() && !show.getPreferences().getManagePsa()
-                        && !show.getPsaSequences().isEmpty() && StringUtils.isEmpty(actualSequence.get().getGroup())) {
+                   && CollectionUtils.isNotEmpty(show.getPsaSequences()) && StringUtils.isEmpty(actualSequence.get().getGroup())) {
                     Integer voteWinsToday = show.getStats().getVotingWin().stream()
                             .filter(stat -> stat.getDateTime().isAfter(LocalDateTime.now().withHour(0).withMinute(0).withSecond(0)))
                             .toList()
@@ -469,7 +469,7 @@ public class PluginService {
         String showToken = this.authUtil.showToken;
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
-            if (show.get().getRequests().isEmpty()) {
+            if (CollectionUtils.isEmpty(show.get().getRequests())) {
                 return ResponseEntity.status(200).body(PluginResponse.builder().message("Queue Empty").build());
             } else {
                 return ResponseEntity.status(200).body(PluginResponse.builder().message("Success").build());
