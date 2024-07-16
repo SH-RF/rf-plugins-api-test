@@ -227,6 +227,7 @@ public class PluginService {
         show.getVotes().add(Vote.builder()
                 .sequence(requestedSequence)
                 .ownerVoted(false)
+                .lastVoteTime(LocalDateTime.now())
                 .votes(2000)
                 .build());
         this.showRepository.save(show);
@@ -394,7 +395,7 @@ public class PluginService {
         show.getVotes().remove(winningVote);
 
         if(winningSequence != null) {
-            boolean isPSA = show.getPsaSequences().stream()
+            boolean winningSequenceIsPSA = show.getPsaSequences().stream()
                     .anyMatch(psaSequence -> StringUtils.equalsIgnoreCase(psaSequence.getName(), winningSequence.getName()));
             Optional<Sequence> actualSequence = show.getSequences().stream()
                     .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), winningSequence.getName()))
@@ -418,7 +419,7 @@ public class PluginService {
                 }
 
                 //Only save stats for non-grouped sequences
-                if(StringUtils.isEmpty(actualSequence.get().getGroup()) && !isPSA) {
+                if(StringUtils.isEmpty(actualSequence.get().getGroup()) && !winningSequenceIsPSA) {
                     show.getStats().getVotingWin().add(Stat.VotingWin.builder()
                             .name(actualSequence.get().getName())
                             .dateTime(LocalDateTime.now())
@@ -426,7 +427,7 @@ public class PluginService {
                 }
 
                 if(show.getPreferences().getPsaEnabled() && !show.getPreferences().getManagePsa()
-                   && CollectionUtils.isNotEmpty(show.getPsaSequences()) && StringUtils.isEmpty(actualSequence.get().getGroup())) {
+                   && CollectionUtils.isNotEmpty(show.getPsaSequences()) && StringUtils.isEmpty(actualSequence.get().getGroup()) && !winningSequenceIsPSA) {
                     Integer voteWinsToday = show.getStats().getVotingWin().stream()
                             .filter(stat -> stat.getDateTime().isAfter(LocalDateTime.now().withHour(0).withMinute(0).withSecond(0)))
                             .toList()
@@ -445,6 +446,7 @@ public class PluginService {
                             sequenceToAdd.ifPresent(sequence -> show.getVotes().add(Vote.builder()
                                     .sequence(sequence)
                                     .ownerVoted(false)
+                                    .lastVoteTime(LocalDateTime.now())
                                     .votes(2000)
                                     .build()));
                         }
