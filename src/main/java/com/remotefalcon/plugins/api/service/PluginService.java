@@ -290,9 +290,7 @@ public class PluginService {
 
     public ResponseEntity<HighestVotedPlaylistResponse> highestVotedPlaylist() {
         String showToken = this.authUtil.showToken;
-        log.info(showToken);
         if(showToken == null) {
-            log.info("Returning 401");
             return ResponseEntity.status(401).build();
         }
         Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
@@ -319,15 +317,17 @@ public class PluginService {
             show.setSequenceGroups(sequenceGroups);
 
             //Get the sequence with the most votes. If there is a tie, get the sequence with the earliest vote time
-            Optional<Vote> winningVote = show.getVotes().stream()
-                    .max(Comparator.comparing(Vote::getVotes)
-                            .thenComparing(Comparator.comparing(Vote::getLastVoteTime).reversed()));
-            if(winningVote.isPresent()) {
-                SequenceGroup winningSequenceGroup = winningVote.get().getSequenceGroup();
-                if(winningSequenceGroup != null) {
-                    return ResponseEntity.status(200).body(this.processWinningGroup(winningVote.get(), show));
-                }else {
-                    return ResponseEntity.status(200).body(this.processWinningVote(winningVote.get(), show));
+            if(CollectionUtils.isNotEmpty(show.getVotes())) {
+                Optional<Vote> winningVote = show.getVotes().stream()
+                        .max(Comparator.comparing(Vote::getVotes)
+                                .thenComparing(Comparator.comparing(Vote::getLastVoteTime).reversed()));
+                if(winningVote.isPresent()) {
+                    SequenceGroup winningSequenceGroup = winningVote.get().getSequenceGroup();
+                    if(winningSequenceGroup != null) {
+                        return ResponseEntity.status(200).body(this.processWinningGroup(winningVote.get(), show));
+                    }else {
+                        return ResponseEntity.status(200).body(this.processWinningVote(winningVote.get(), show));
+                    }
                 }
             }
             this.showRepository.save(show);
