@@ -29,6 +29,9 @@ public class PluginService {
 
     public ResponseEntity<PluginResponse> viewerControlMode() {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
@@ -43,6 +46,9 @@ public class PluginService {
 
     public ResponseEntity<PluginResponse> syncPlaylists(SyncPlaylistRequest request) {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
 
@@ -135,6 +141,9 @@ public class PluginService {
 
     public ResponseEntity<PluginResponse> updateWhatsPlaying(UpdateWhatsPlayingRequest request) {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
@@ -223,14 +232,11 @@ public class PluginService {
         this.showRepository.save(show);
     }
 
-    private void updatePlayingNext(Show show) {
-        Optional<Request> nextRequest = show.getRequests().stream()
-                .min(Comparator.comparing(Request::getPosition));
-        nextRequest.ifPresent(request -> show.setPlayingNext(request.getSequence().getName()));
-    }
-
     public ResponseEntity<PluginResponse> updateNextScheduledSequence(UpdateNextScheduledRequest request) {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
@@ -245,6 +251,9 @@ public class PluginService {
 
     public ResponseEntity<NextPlaylistResponse> nextPlaylistInQueue(Boolean updateQueue) {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
         NextPlaylistResponse defaultResponse = NextPlaylistResponse.builder()
                 .nextPlaylist(null)
@@ -281,6 +290,9 @@ public class PluginService {
 
     public ResponseEntity<HighestVotedPlaylistResponse> highestVotedPlaylist() {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
         HighestVotedPlaylistResponse response = HighestVotedPlaylistResponse.builder()
                 .winningPlaylist(null)
@@ -467,6 +479,9 @@ public class PluginService {
 
     public ResponseEntity<PluginResponse> updatePlaylistQueue() {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
             if (CollectionUtils.isEmpty(show.get().getRequests())) {
@@ -482,6 +497,9 @@ public class PluginService {
 
     public ResponseEntity<PluginResponse> pluginVersion(PluginVersion request) {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
             show.get().setPluginVersion(request.getPluginVersion());
@@ -496,6 +514,9 @@ public class PluginService {
 
     public ResponseEntity<RemotePreferenceResponse> remotePreferences() {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         return show.map(value -> ResponseEntity.status(200).body(RemotePreferenceResponse.builder()
                 .remoteSubdomain(value.getShowSubdomain())
@@ -505,6 +526,9 @@ public class PluginService {
 
     public ResponseEntity<PluginResponse> purgeQueue() {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
             show.get().setRequests(new ArrayList<>());
@@ -518,6 +542,9 @@ public class PluginService {
 
     public ResponseEntity<PluginResponse> resetAllVotes() {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
             show.get().setVotes(new ArrayList<>());
@@ -531,6 +558,9 @@ public class PluginService {
 
     public ResponseEntity<PluginResponse> toggleViewerControl() {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
             show.get().getPreferences().setViewerControlEnabled(!show.get().getPreferences().getViewerControlEnabled());
@@ -544,6 +574,9 @@ public class PluginService {
 
     public ResponseEntity<PluginResponse> updateViewerControl(ViewerControlRequest request) {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
             show.get().getPreferences().setViewerControlEnabled(StringUtils.equalsIgnoreCase("Y", request.getViewerControlEnabled()));
@@ -557,6 +590,9 @@ public class PluginService {
 
     public ResponseEntity<PluginResponse> updateManagedPsa(ManagedPSARequest request) {
         String showToken = this.authUtil.showToken;
+        if(showToken == null) {
+            return ResponseEntity.status(401).build();
+        }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
             show.get().getPreferences().setManagePsa(StringUtils.equalsIgnoreCase("Y", request.getManagedPsaEnabled()));
