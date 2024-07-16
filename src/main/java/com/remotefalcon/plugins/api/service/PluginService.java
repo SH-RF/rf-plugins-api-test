@@ -215,6 +215,17 @@ public class PluginService {
     }
 
     private void setPSASequenceRequest(Show show, Sequence requestedSequence) {
+        List<String> psaSequences = show.getPsaSequences().stream().map(PsaSequence::getName).toList();
+        boolean isPsaInJukebox = show.getRequests().stream().anyMatch(request -> psaSequences.contains(request.getSequence().getName()));
+        if(!isPsaInJukebox) {
+            show.getVotes().add(Vote.builder()
+                    .sequence(requestedSequence)
+                    .ownerVoted(false)
+                    .lastVoteTime(LocalDateTime.now())
+                    .votes(2000)
+                    .build());
+            this.showRepository.save(show);
+        }
         show.getRequests().add(Request.builder()
                 .sequence(requestedSequence)
                 .ownerRequested(false)
@@ -224,13 +235,17 @@ public class PluginService {
     }
 
     private void setPSASequenceVote(Show show, Sequence requestedSequence) {
-        show.getVotes().add(Vote.builder()
-                .sequence(requestedSequence)
-                .ownerVoted(false)
-                .lastVoteTime(LocalDateTime.now())
-                .votes(2000)
-                .build());
-        this.showRepository.save(show);
+        List<String> psaSequences = show.getPsaSequences().stream().map(PsaSequence::getName).toList();
+        boolean isPsaInVotes = show.getVotes().stream().anyMatch(vote -> psaSequences.contains(vote.getSequence().getName()));
+        if(!isPsaInVotes) {
+            show.getVotes().add(Vote.builder()
+                    .sequence(requestedSequence)
+                    .ownerVoted(false)
+                    .lastVoteTime(LocalDateTime.now())
+                    .votes(2000)
+                    .build());
+            this.showRepository.save(show);
+        }
     }
 
     public ResponseEntity<PluginResponse> updateNextScheduledSequence(UpdateNextScheduledRequest request) {
@@ -443,12 +458,17 @@ public class PluginService {
                                     .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), nextPsaSequence.get().getName()))
                                     .findFirst();
                             show.getPsaSequences().get(show.getPsaSequences().indexOf(nextPsaSequence.get())).setLastPlayed(LocalDateTime.now());
-                            sequenceToAdd.ifPresent(sequence -> show.getVotes().add(Vote.builder()
-                                    .sequence(sequence)
-                                    .ownerVoted(false)
-                                    .lastVoteTime(LocalDateTime.now())
-                                    .votes(2000)
-                                    .build()));
+                            //Final Sanity check
+                            List<String> psaSequences = show.getPsaSequences().stream().map(PsaSequence::getName).toList();
+                            boolean isPsaInVotes = show.getVotes().stream().anyMatch(vote -> psaSequences.contains(vote.getSequence().getName()));
+                            if(!isPsaInVotes) {
+                                sequenceToAdd.ifPresent(sequence -> show.getVotes().add(Vote.builder()
+                                        .sequence(sequence)
+                                        .ownerVoted(false)
+                                        .lastVoteTime(LocalDateTime.now())
+                                        .votes(2000)
+                                        .build()));
+                            }
                         }
                     }
                 }
