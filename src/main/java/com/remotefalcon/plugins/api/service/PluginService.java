@@ -290,7 +290,9 @@ public class PluginService {
 
     public ResponseEntity<HighestVotedPlaylistResponse> highestVotedPlaylist() {
         String showToken = this.authUtil.showToken;
+        log.info(showToken);
         if(showToken == null) {
+            log.info("Returning 401");
             return ResponseEntity.status(401).build();
         }
         Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
