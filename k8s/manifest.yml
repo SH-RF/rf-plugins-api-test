@@ -10,9 +10,7 @@ metadata:
   name: #{Application}#
   namespace: #{Namespace}#
   labels:
-    tags.datadoghq.com/env: #{Env}#
-    tags.datadoghq.com/service: #{Application}#
-    tags.datadoghq.com/version: #{Version}#
+    app: #{Application}#
 spec:
   replicas: #{Replicas}#
   selector:
@@ -20,18 +18,9 @@ spec:
       app: #{Application}#
   template:
     metadata:
-      annotations:
-        com.datadoghq.ad.logs: '[{"source": "java", "service": "remote-falcon-plugins-api", "log_processing_rules": [{"type": "multi_line", "name": "log_start_with_date", "pattern" : "\\d{4}-(0?[1-9]|1[012])-(0?[1-9]|[12][0-9]|3[01])"}]}]'
       labels:
         app: #{Application}#
-        tags.datadoghq.com/env: #{Env}#
-        tags.datadoghq.com/service: #{Application}#
-        tags.datadoghq.com/version: #{Version}#
     spec:
-      volumes:
-        - hostPath:
-            path: /var/run/datadog/
-          name: apmsocketpath
       containers:
       - name: #{Application}#
         image: #{Image}#
@@ -42,9 +31,6 @@ spec:
           limits:
             memory: #{Limits.Memory}#
             cpu: #{Limits.CPU}#
-        volumeMounts:
-          - name: apmsocketpath
-            mountPath: /var/run/datadog
         ports:
         - containerPort: 8080
         env:
@@ -55,20 +41,6 @@ spec:
             secretKeyRef:
               name: remote-falcon-plugins-api
               key: mongo-uri
-        - name: DD_ENV
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.labels['tags.datadoghq.com/env']
-        - name: DD_SERVICE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.labels['tags.datadoghq.com/service']
-        - name: DD_VERSION
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.labels['tags.datadoghq.com/version']
-        - name: DD_LOGS_INJECTION
-          value: "true"
         startupProbe:
           httpGet:
             path: /actuator/health
