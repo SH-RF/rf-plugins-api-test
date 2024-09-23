@@ -195,7 +195,7 @@ public class PluginService {
 
     private void clearViewersVotedAndRequested(Show show) {
         if(CollectionUtils.isNotEmpty(show.getRequests())) {
-            show.getRequests().forEach(request -> request.setViewersRequested(new ArrayList<>()));
+            show.getRequests().forEach(request -> request.setViewerRequested(null));
         }
         if(CollectionUtils.isNotEmpty(show.getVotes())) {
             show.getVotes().forEach(vote -> vote.setViewersVoted(new ArrayList<>()));
