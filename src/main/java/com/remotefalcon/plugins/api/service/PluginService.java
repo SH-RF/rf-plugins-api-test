@@ -182,6 +182,8 @@ public class PluginService {
             //Managed PSA
             this.handleManagedPSA(sequencesPlayed, show);
 
+            this.clearViewersVotedAndRequested(show);
+
             this.showRepository.save(show);
 
             return ResponseEntity.status(200).body(PluginResponse.builder().currentPlaylist(request.getPlaylist()).build());
@@ -189,6 +191,15 @@ public class PluginService {
         return ResponseEntity.status(400).body(PluginResponse.builder()
                 .message("Show not found")
                 .build());
+    }
+
+    private void clearViewersVotedAndRequested(Show show) {
+        if(CollectionUtils.isNotEmpty(show.getRequests())) {
+            show.getRequests().forEach(request -> request.setViewersRequested(new ArrayList<>()));
+        }
+        if(CollectionUtils.isNotEmpty(show.getVotes())) {
+            show.getVotes().forEach(vote -> vote.setViewersVoted(new ArrayList<>()));
+        }
     }
 
     private void handleManagedPSA(int sequencesPlayed, Show show) {
