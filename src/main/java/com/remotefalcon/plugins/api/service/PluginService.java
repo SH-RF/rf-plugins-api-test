@@ -160,7 +160,7 @@ public class PluginService {
             }else {
                 sequencesPlayed++;
             }
-            if(whatsPlayingSequence.isPresent() && StringUtils.isEmpty(whatsPlayingSequence.get().getGroup())) {
+            if(whatsPlayingSequence.isPresent() && StringUtils.isNotEmpty(whatsPlayingSequence.get().getGroup())) {
                 sequencesPlayed--;
             }
             show.getPreferences().setSequencesPlayed(sequencesPlayed);
