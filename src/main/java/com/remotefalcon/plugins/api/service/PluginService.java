@@ -599,6 +599,7 @@ public class PluginService {
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
             show.get().getPreferences().setViewerControlEnabled(!show.get().getPreferences().getViewerControlEnabled());
+            show.get().getPreferences().setSequencesPlayed(0);
             this.showRepository.save(show.get());
             return ResponseEntity.status(200).body(PluginResponse.builder().viewerControlEnabled(!show.get().getPreferences().getViewerControlEnabled()).build());
         }
