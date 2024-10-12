@@ -65,11 +65,11 @@ jobs:
           Application: remote-falcon-plugins-api
           Version: ${{ github.sha }}
           Env: prod
-          Replicas: 3
+          Replicas: 4
           Image: ${{ env.REGISTRY }}/${{ steps.repository_string.outputs.lowercase }}:${{ github.sha }}
-          Requests.Memory: 1000Mi
+          Requests.Memory: 2000Mi
           Requests.CPU: 750m
-          Limits.Memory: 1250Mi
+          Limits.Memory: 2250Mi
           Limits.CPU: 1000m
           Host: remotefalcon.com
 
