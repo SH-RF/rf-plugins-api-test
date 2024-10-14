@@ -68,9 +68,9 @@ jobs:
           Replicas: 4
           Image: ${{ env.REGISTRY }}/${{ steps.repository_string.outputs.lowercase }}:${{ github.sha }}
           Requests.Memory: 2000Mi
-          Requests.CPU: 750m
-          Limits.Memory: 2250Mi
-          Limits.CPU: 1000m
+          Requests.CPU: 1500m
+          Limits.Memory: 2500Mi
+          Limits.CPU: 2000m
           Host: remotefalcon.com
 
       - name: Install doctl
