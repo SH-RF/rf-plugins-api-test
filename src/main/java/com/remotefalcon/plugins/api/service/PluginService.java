@@ -7,6 +7,7 @@ import com.remotefalcon.plugins.api.model.*;
 import com.remotefalcon.plugins.api.repository.ShowRepository;
 import com.remotefalcon.plugins.api.response.PluginResponse;
 import com.remotefalcon.plugins.api.util.AuthUtil;
+import com.remotefalcon.plugins.api.util.MethodTimerUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
@@ -316,6 +317,7 @@ public class PluginService {
     }
 
     public ResponseEntity<HighestVotedPlaylistResponse> highestVotedPlaylist() {
+        long startTime = System.nanoTime();
         String showToken = this.authUtil.showToken;
         if(showToken == null) {
             return ResponseEntity.status(401).build();
@@ -358,6 +360,9 @@ public class PluginService {
                 }
             }
             this.showRepository.save(show);
+
+            MethodTimerUtil.logExecutionTime(startTime, show.getShowSubdomain(), "highestVotedPlaylist");
+
             return ResponseEntity.status(200).body(response);
         }
         return ResponseEntity.status(400).body(response);
