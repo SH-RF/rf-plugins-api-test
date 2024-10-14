@@ -319,7 +319,6 @@ public class PluginService {
     }
 
     public ResponseEntity<HighestVotedPlaylistResponse> highestVotedPlaylist() {
-        long startTime = System.nanoTime();
         String showToken = this.authUtil.showToken;
         if(showToken == null) {
             return ResponseEntity.status(401).build();
@@ -362,8 +361,6 @@ public class PluginService {
                 }
             }
             this.showRepository.save(show);
-
-            MethodTimerUtil.logExecutionTime(startTime, show.getShowSubdomain(), "highestVotedPlaylist");
 
             return ResponseEntity.status(200).body(response);
         }
