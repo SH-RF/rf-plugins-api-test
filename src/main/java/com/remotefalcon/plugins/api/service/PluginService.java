@@ -53,10 +53,10 @@ public class PluginService {
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
 
-            List<Sequence> updatedSequences = new ArrayList<>();
+            Set<Sequence> updatedSequences = new HashSet<>();
             updatedSequences.addAll(this.getSequencesToDelete(request, show.get()));
             updatedSequences.addAll(this.addNewSequences(request, show.get()));
-            show.get().setSequences(updatedSequences);
+            show.get().setSequences(updatedSequences.stream().toList());
 
             List<PsaSequence> updatedPsaSequences = this.updatePsaSequences(request, show.get());
             show.get().setPsaSequences(updatedPsaSequences);
@@ -166,12 +166,14 @@ public class PluginService {
             }
             show.getPreferences().setSequencesPlayed(sequencesPlayed);
 
-            show.setSequences(show.getSequences().stream()
+            Set<Sequence> sequenceSet = show.getSequences().stream()
                     .peek(sequence -> {
                         if(sequence.getVisibilityCount() > 0) {
                             sequence.setVisibilityCount(sequence.getVisibilityCount() - 1);
                         }
-            }).toList());
+                    }).collect(Collectors.toSet());
+
+            show.setSequences(sequenceSet.stream().toList());
 
             show.setSequenceGroups(show.getSequenceGroups().stream()
                     .peek(sequenceGroup -> {
@@ -331,18 +333,18 @@ public class PluginService {
             Show show = optionalShow.get();
 
             //Update visibility counts
-            List<Sequence> sequences = show.getSequences().stream().peek(sequence -> {
+            Set<Sequence> sequences = show.getSequences().stream().peek(sequence -> {
                 if(sequence.getVisibilityCount() > 0) {
                     sequence.setVisibilityCount(sequence.getVisibilityCount() - 1);
                 }
-            }).toList();
+            }).collect(Collectors.toSet());
             List<SequenceGroup> sequenceGroups = show.getSequenceGroups().stream().peek(sequenceGroup -> {
                 if(sequenceGroup.getVisibilityCount() > 0) {
                     sequenceGroup.setVisibilityCount(sequenceGroup.getVisibilityCount() - 1);
                 }
             }).toList();
 
-            show.setSequences(sequences);
+            show.setSequences(sequences.stream().toList());
             show.setSequenceGroups(sequenceGroups);
 
             //Get the sequence with the most votes. If there is a tie, get the sequence with the earliest vote time
