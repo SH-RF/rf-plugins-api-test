@@ -20,3 +20,9 @@ management:
         allowed-origins: "*"
         allowed-methods: "OPTIONS, GET, POST, PUT, DELETE"
         allowed-headers: "*"
+
+logging:
+  level:
+    org:
+      springframework:
+        graphql: OFF #Turn off logging for Spring GraphQL
