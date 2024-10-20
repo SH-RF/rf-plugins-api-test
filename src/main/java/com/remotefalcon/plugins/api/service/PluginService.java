@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class PluginService {
     private final ShowRepository showRepository;
     private final AuthUtil authUtil;
@@ -331,21 +330,6 @@ public class PluginService {
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
 
-            //Update visibility counts
-            Set<Sequence> sequences = show.getSequences().stream().peek(sequence -> {
-                if(sequence.getVisibilityCount() > 0) {
-                    sequence.setVisibilityCount(sequence.getVisibilityCount() - 1);
-                }
-            }).collect(Collectors.toSet());
-            List<SequenceGroup> sequenceGroups = show.getSequenceGroups().stream().peek(sequenceGroup -> {
-                if(sequenceGroup.getVisibilityCount() > 0) {
-                    sequenceGroup.setVisibilityCount(sequenceGroup.getVisibilityCount() - 1);
-                }
-            }).toList();
-
-            show.setSequences(sequences.stream().toList());
-            show.setSequenceGroups(sequenceGroups);
-
             //Get the sequence with the most votes. If there is a tie, get the sequence with the earliest vote time
             if(CollectionUtils.isNotEmpty(show.getVotes())) {
                 Optional<Vote> winningVote = show.getVotes().stream()
@@ -384,7 +368,7 @@ public class PluginService {
 
                 //Set visibility counts
                 if(show.getPreferences().getHideSequenceCount() != 0) {
-                    actualSequenceGroup.get().setVisibilityCount(show.getPreferences().getHideSequenceCount());
+                    actualSequenceGroup.get().setVisibilityCount(show.getPreferences().getHideSequenceCount() + 1);
                 }
 
                 List<Sequence> sequencesInGroup = new ArrayList<>(show.getSequences().stream()
@@ -445,7 +429,7 @@ public class PluginService {
 
                 //Set visibility counts
                 if(show.getPreferences().getHideSequenceCount() != 0 && StringUtils.isEmpty(actualSequence.get().getGroup())) {
-                    actualSequence.get().setVisibilityCount(show.getPreferences().getHideSequenceCount());
+                    actualSequence.get().setVisibilityCount(show.getPreferences().getHideSequenceCount() + 1);
                 }
 
                 //Only save stats for non-grouped sequences
