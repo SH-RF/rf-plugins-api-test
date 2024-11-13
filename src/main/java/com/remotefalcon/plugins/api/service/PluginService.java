@@ -555,6 +555,7 @@ public class PluginService {
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
             show.get().setRequests(new ArrayList<>());
+            show.get().setVotes(new ArrayList<>());
             this.showRepository.save(show.get());
             return ResponseEntity.status(200).body(PluginResponse.builder().message("Success").build());
         }
