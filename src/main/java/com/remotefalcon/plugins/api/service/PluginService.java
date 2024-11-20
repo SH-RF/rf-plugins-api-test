@@ -272,7 +272,7 @@ public class PluginService {
             Show show = optionalShow.get();
             show.setPlayingNextFromSchedule(request.getSequence());
             this.showRepository.save(show);
-            return ResponseEntity.status(200).body(PluginResponse.builder().currentPlaylist(request.getSequence()).build());
+            return ResponseEntity.status(200).body(PluginResponse.builder().nextScheduledSequence(request.getSequence()).build());
         }
         return ResponseEntity.status(400).body(PluginResponse.builder()
                 .message("Show not found")
