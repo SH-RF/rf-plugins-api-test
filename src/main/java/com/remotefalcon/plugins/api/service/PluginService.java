@@ -205,23 +205,25 @@ public class PluginService {
     }
 
     private void handleManagedPSA(int sequencesPlayed, Show show) {
-        if(sequencesPlayed != 0 && show.getPreferences().getPsaEnabled() && show.getPreferences().getManagePsa()
-                && show.getPreferences().getPsaFrequency() != null && show.getPreferences().getPsaFrequency() > 0) {
-            if(sequencesPlayed % show.getPreferences().getPsaFrequency() == 0) {
-                Optional<PsaSequence> nextPsaSequence = show.getPsaSequences().stream()
-                        .min(Comparator.comparing(PsaSequence::getLastPlayed)
-                                .thenComparing(PsaSequence::getOrder));
-                boolean isPSAPlayingNow = show.getPsaSequences().stream()
-                        .anyMatch(psaSequence -> StringUtils.equalsIgnoreCase(show.getPlayingNow(), psaSequence.getName()));
-                if(nextPsaSequence.isPresent() && !isPSAPlayingNow) {
-                    Optional<Sequence> sequenceToAdd = show.getSequences().stream()
-                            .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), nextPsaSequence.get().getName()))
-                            .findFirst();
-                    show.getPsaSequences().get(show.getPsaSequences().indexOf(nextPsaSequence.get())).setLastPlayed(LocalDateTime.now());
-                    if(show.getPreferences().getViewerControlMode() == ViewerControlMode.JUKEBOX) {
-                        sequenceToAdd.ifPresent(sequence -> this.setPSASequenceRequest(show, sequence));
-                    }else if(show.getPreferences().getViewerControlMode() == ViewerControlMode.VOTING) {
-                        sequenceToAdd.ifPresent(sequence -> this.setPSASequenceVote(show, sequence));
+        if(show.getPsaSequences() != null && !show.getPsaSequences().isEmpty()) {
+            if(sequencesPlayed != 0 && show.getPreferences().getPsaEnabled() && show.getPreferences().getManagePsa()
+                    && show.getPreferences().getPsaFrequency() != null && show.getPreferences().getPsaFrequency() > 0) {
+                if(sequencesPlayed % show.getPreferences().getPsaFrequency() == 0) {
+                    Optional<PsaSequence> nextPsaSequence = show.getPsaSequences().stream()
+                            .min(Comparator.comparing(PsaSequence::getLastPlayed)
+                                    .thenComparing(PsaSequence::getOrder));
+                    boolean isPSAPlayingNow = show.getPsaSequences().stream()
+                            .anyMatch(psaSequence -> StringUtils.equalsIgnoreCase(show.getPlayingNow(), psaSequence.getName()));
+                    if(nextPsaSequence.isPresent() && !isPSAPlayingNow) {
+                        Optional<Sequence> sequenceToAdd = show.getSequences().stream()
+                                .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), nextPsaSequence.get().getName()))
+                                .findFirst();
+                        show.getPsaSequences().get(show.getPsaSequences().indexOf(nextPsaSequence.get())).setLastPlayed(LocalDateTime.now());
+                        if(show.getPreferences().getViewerControlMode() == ViewerControlMode.JUKEBOX) {
+                            sequenceToAdd.ifPresent(sequence -> this.setPSASequenceRequest(show, sequence));
+                        }else if(show.getPreferences().getViewerControlMode() == ViewerControlMode.VOTING) {
+                            sequenceToAdd.ifPresent(sequence -> this.setPSASequenceVote(show, sequence));
+                        }
                     }
                 }
             }
