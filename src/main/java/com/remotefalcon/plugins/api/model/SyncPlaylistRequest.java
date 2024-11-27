@@ -1,6 +1,5 @@
 package com.remotefalcon.plugins.api.model;
 
-import com.remotefalcon.plugins.api.model.SyncPlaylistDetails;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

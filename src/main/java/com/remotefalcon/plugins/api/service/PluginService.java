@@ -7,16 +7,13 @@ import com.remotefalcon.plugins.api.model.*;
 import com.remotefalcon.plugins.api.repository.ShowRepository;
 import com.remotefalcon.plugins.api.response.PluginResponse;
 import com.remotefalcon.plugins.api.util.AuthUtil;
-import com.remotefalcon.plugins.api.util.MethodTimerUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
