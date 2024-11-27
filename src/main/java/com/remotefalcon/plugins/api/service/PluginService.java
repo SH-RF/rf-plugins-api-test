@@ -364,6 +364,13 @@ public class PluginService {
                     .findFirst();
 
             if(actualSequenceGroup.isPresent()) {
+                List<Sequence> sequencesInGroup = new ArrayList<>(show.getSequences().stream()
+                        .filter(sequence -> StringUtils.equalsIgnoreCase(actualSequenceGroup.get().getName(), sequence.getGroup()))
+                        .toList());
+                if(CollectionUtils.isEmpty(sequencesInGroup)) {
+                    return null;
+                }
+
                 show.getStats().getVotingWin().add(Stat.VotingWin.builder()
                         .name(actualSequenceGroup.get().getName())
                         .dateTime(LocalDateTime.now())
@@ -373,10 +380,6 @@ public class PluginService {
                 if(show.getPreferences().getHideSequenceCount() != 0) {
                     actualSequenceGroup.get().setVisibilityCount(show.getPreferences().getHideSequenceCount() + 1);
                 }
-
-                List<Sequence> sequencesInGroup = new ArrayList<>(show.getSequences().stream()
-                        .filter(sequence -> StringUtils.equalsIgnoreCase(actualSequenceGroup.get().getName(), sequence.getGroup()))
-                        .toList());
 
                 int voteCount = 2099;
 
