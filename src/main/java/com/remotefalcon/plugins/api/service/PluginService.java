@@ -1,22 +1,43 @@
 package com.remotefalcon.plugins.api.service;
 
-import com.remotefalcon.library.documents.Show;
-import com.remotefalcon.library.enums.ViewerControlMode;
-import com.remotefalcon.library.models.*;
-import com.remotefalcon.plugins.api.model.*;
-import com.remotefalcon.plugins.api.repository.ShowRepository;
-import com.remotefalcon.plugins.api.response.PluginResponse;
-import com.remotefalcon.plugins.api.util.AuthUtil;
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+import com.remotefalcon.library.documents.Show;
+import com.remotefalcon.library.enums.ViewerControlMode;
+import com.remotefalcon.library.models.PsaSequence;
+import com.remotefalcon.library.models.Request;
+import com.remotefalcon.library.models.Sequence;
+import com.remotefalcon.library.models.SequenceGroup;
+import com.remotefalcon.library.models.Stat;
+import com.remotefalcon.library.models.Vote;
+import com.remotefalcon.plugins.api.model.HighestVotedPlaylistResponse;
+import com.remotefalcon.plugins.api.model.ManagedPSARequest;
+import com.remotefalcon.plugins.api.model.NextPlaylistResponse;
+import com.remotefalcon.plugins.api.model.PluginVersion;
+import com.remotefalcon.plugins.api.model.RemotePreferenceResponse;
+import com.remotefalcon.plugins.api.model.SyncPlaylistDetails;
+import com.remotefalcon.plugins.api.model.SyncPlaylistRequest;
+import com.remotefalcon.plugins.api.model.UpdateNextScheduledRequest;
+import com.remotefalcon.plugins.api.model.UpdateWhatsPlayingRequest;
+import com.remotefalcon.plugins.api.model.ViewerControlRequest;
+import com.remotefalcon.plugins.api.repository.ShowRepository;
+import com.remotefalcon.plugins.api.response.PluginResponse;
+import com.remotefalcon.plugins.api.util.AuthUtil;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -207,6 +228,9 @@ public class PluginService {
                     && show.getPreferences().getPsaFrequency() != null && show.getPreferences().getPsaFrequency() > 0) {
                 if(sequencesPlayed % show.getPreferences().getPsaFrequency() == 0) {
                     Optional<PsaSequence> nextPsaSequence = show.getPsaSequences().stream()
+                            .filter(psaSequence -> psaSequence != null)
+                            .filter(psaSequence -> psaSequence.getLastPlayed() != null)
+                            .filter(psaSequence -> psaSequence.getOrder() != null)
                             .min(Comparator.comparing(PsaSequence::getLastPlayed)
                                     .thenComparing(PsaSequence::getOrder));
                     boolean isPSAPlayingNow = show.getPsaSequences().stream()
