@@ -166,7 +166,7 @@ public class PluginService {
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
             show.setPlayingNow(request.getPlaylist());
-            int sequencesPlayed = show.getPreferences().getSequencesPlayed();
+            int sequencesPlayed = show.getPreferences().getSequencesPlayed() != null ? show.getPreferences().getSequencesPlayed() : 0;
             Optional<Sequence> whatsPlayingSequence = show.getSequences().stream()
                     .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), request.getPlaylist()))
                     .findFirst();
