@@ -477,6 +477,9 @@ public class PluginService {
                             .anyMatch(psaSequence -> StringUtils.equalsIgnoreCase(show.getPlayingNow(), psaSequence.getName()));
                     if(voteWinsToday % show.getPreferences().getPsaFrequency() == 0 && !isPSAPlayingNow) {
                         Optional<PsaSequence> nextPsaSequence = show.getPsaSequences().stream()
+                                .filter(psaSequence -> psaSequence != null)
+                                .filter(psaSequence -> psaSequence.getLastPlayed() != null)
+                                .filter(psaSequence -> psaSequence.getOrder() != null)
                                 .min(Comparator.comparing(PsaSequence::getLastPlayed)
                                         .thenComparing(PsaSequence::getOrder));
                         if(nextPsaSequence.isPresent()) {
