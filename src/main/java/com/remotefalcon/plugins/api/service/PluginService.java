@@ -158,6 +158,9 @@ public class PluginService {
     }
 
     public ResponseEntity<PluginResponse> updateWhatsPlaying(UpdateWhatsPlayingRequest request) {
+        if(request == null || StringUtils.isEmpty(request.getPlaylist())) {
+          return ResponseEntity.status(200).body(PluginResponse.builder().build());
+        }
         String showToken = this.authUtil.showToken;
         if(showToken == null) {
             return ResponseEntity.status(401).build();
@@ -165,6 +168,10 @@ public class PluginService {
         Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
+            if(show.getPreferences() == null) {return ResponseEntity.status(400).body(PluginResponse.builder()
+              .message("Preferences not found")
+              .build());
+            }
             show.setPlayingNow(request.getPlaylist());
             int sequencesPlayed = show.getPreferences().getSequencesPlayed() != null ? show.getPreferences().getSequencesPlayed() : 0;
             Optional<Sequence> whatsPlayingSequence = show.getSequences().stream()
@@ -634,7 +641,11 @@ public class PluginService {
         }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
-            show.get().getPreferences().setViewerControlEnabled(StringUtils.equalsIgnoreCase("Y", request.getViewerControlEnabled()));
+            if(show.get().getPreferences() == null) {return ResponseEntity.status(400).body(PluginResponse.builder()
+              .message("Preferences not found")
+              .build());
+            }
+            show.get().getPreferences().setViewerControlEnabled(StringUtils.equalsIgnoreCase("Y", request.getViewerControlEnabled())); //HERE
             this.showRepository.save(show.get());
             return ResponseEntity.status(200).body(PluginResponse.builder().viewerControlEnabled(StringUtils.equalsIgnoreCase("Y", request.getViewerControlEnabled())).build());
         }
