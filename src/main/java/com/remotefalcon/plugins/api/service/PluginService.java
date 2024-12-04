@@ -69,20 +69,22 @@ public class PluginService {
         }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
+          if(request.getPlaylists().size() > 200) {
+            return ResponseEntity.status(400).body(PluginResponse.builder().message("Cannot sync more than 200 sequences").build());
+          }
+          Set<Sequence> updatedSequences = new HashSet<>();
+          updatedSequences.addAll(this.getSequencesToDelete(request, show.get()));
+          updatedSequences.addAll(this.addNewSequences(request, show.get()));
+          show.get().setSequences(updatedSequences.stream().toList());
 
-            Set<Sequence> updatedSequences = new HashSet<>();
-            updatedSequences.addAll(this.getSequencesToDelete(request, show.get()));
-            updatedSequences.addAll(this.addNewSequences(request, show.get()));
-            show.get().setSequences(updatedSequences.stream().toList());
+          List<PsaSequence> updatedPsaSequences = this.updatePsaSequences(request, show.get());
+          show.get().setPsaSequences(updatedPsaSequences);
+          if(CollectionUtils.isEmpty(updatedPsaSequences)) {
+              show.get().getPreferences().setPsaEnabled(false);
+          }
 
-            List<PsaSequence> updatedPsaSequences = this.updatePsaSequences(request, show.get());
-            show.get().setPsaSequences(updatedPsaSequences);
-            if(CollectionUtils.isEmpty(updatedPsaSequences)) {
-                show.get().getPreferences().setPsaEnabled(false);
-            }
-
-            this.showRepository.save(show.get());
-            return ResponseEntity.status(200).body(PluginResponse.builder().message("Success").build());
+          this.showRepository.save(show.get());
+          return ResponseEntity.status(200).body(PluginResponse.builder().message("Success").build());
         }
         return ResponseEntity.status(400).body(PluginResponse.builder()
                 .message("Show not found")
