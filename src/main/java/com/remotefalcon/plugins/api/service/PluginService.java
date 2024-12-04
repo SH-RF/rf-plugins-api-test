@@ -168,11 +168,19 @@ public class PluginService {
         Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
-            if(show.getPreferences() == null) {return ResponseEntity.status(400).body(PluginResponse.builder()
-              .message("Preferences not found")
-              .build());
+            if(show.getPreferences() == null) {
+              return ResponseEntity.status(400).body(PluginResponse.builder()
+                .message("Preferences not found")
+                .build());
             }
-            show.setPlayingNow(request.getPlaylist());
+            if(StringUtils.isEmpty(request.getPlaylist())) {
+              show.setPlayingNow("");
+              show.setPlayingNext("");
+              show.setPlayingNextFromSchedule("");
+              return ResponseEntity.status(200).body(PluginResponse.builder().currentPlaylist(request.getPlaylist()).build());
+            }else {
+              show.setPlayingNow(request.getPlaylist());
+            }
             int sequencesPlayed = show.getPreferences().getSequencesPlayed() != null ? show.getPreferences().getSequencesPlayed() : 0;
             Optional<Sequence> whatsPlayingSequence = show.getSequences().stream()
                     .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), request.getPlaylist()))
@@ -300,7 +308,18 @@ public class PluginService {
         Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
         if(optionalShow.isPresent()) {
             Show show = optionalShow.get();
-            show.setPlayingNextFromSchedule(request.getSequence());
+            if(show.getPreferences() == null) {
+              return ResponseEntity.status(400).body(PluginResponse.builder()
+                .message("Preferences not found")
+                .build());
+            }
+            if(StringUtils.isEmpty(request.getSequence())) {
+              show.setPlayingNow("");
+              show.setPlayingNext("");
+              show.setPlayingNextFromSchedule("");
+            }else {
+              show.setPlayingNextFromSchedule(request.getSequence());
+            }
             this.showRepository.save(show);
             return ResponseEntity.status(200).body(PluginResponse.builder().nextScheduledSequence(request.getSequence()).build());
         }
