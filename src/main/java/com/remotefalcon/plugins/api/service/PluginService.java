@@ -517,7 +517,9 @@ public class PluginService {
                             show.getPsaSequences().get(show.getPsaSequences().indexOf(nextPsaSequence.get())).setLastPlayed(LocalDateTime.now());
                             //Final Sanity check
                             List<String> psaSequences = show.getPsaSequences().stream().map(PsaSequence::getName).toList();
-                            boolean isPsaInVotes = show.getVotes().stream().anyMatch(vote -> psaSequences.contains(vote.getSequence().getName()));
+                            boolean isPsaInVotes = show.getVotes().stream().anyMatch(vote -> (vote.getSequence() != null
+                              && vote.getSequence().getName() != null
+                              && psaSequences.contains(vote.getSequence().getName())));
                             if(!isPsaInVotes) {
                                 sequenceToAdd.ifPresent(sequence -> show.getVotes().add(Vote.builder()
                                         .sequence(sequence)
