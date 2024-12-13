@@ -10,8 +10,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -45,6 +47,9 @@ public class PluginService {
     private final ShowRepository showRepository;
     private final AuthUtil authUtil;
 
+    @Value("${sequence-limit}")
+    Integer sequenceLimit;
+
     public ResponseEntity<PluginResponse> viewerControlMode() {
         String showToken = this.authUtil.showToken;
         if(showToken == null) {
@@ -69,8 +74,8 @@ public class PluginService {
         }
         Optional<Show> show = this.showRepository.findByShowToken(showToken);
         if(show.isPresent()) {
-          if(request.getPlaylists().size() > 200) {
-            return ResponseEntity.status(400).body(PluginResponse.builder().message("Cannot sync more than 200 sequences").build());
+          if(request.getPlaylists().size() > sequenceLimit) {
+            return ResponseEntity.status(400).body(PluginResponse.builder().message("Cannot sync more than " + sequenceLimit + " sequences").build());
           }
           Set<Sequence> updatedSequences = new HashSet<>();
           updatedSequences.addAll(this.getSequencesToDelete(request, show.get()));

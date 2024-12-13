@@ -26,3 +26,5 @@ logging:
     org:
       springframework:
         graphql: OFF #Turn off logging for Spring GraphQL
+
+sequence-limit: 200
