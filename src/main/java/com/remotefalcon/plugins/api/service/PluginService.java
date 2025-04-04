@@ -697,4 +697,16 @@ public class PluginService {
                 .message("Show not found")
                 .build());
     }
+
+    public void fppHeartbeat() {
+        String showToken = this.authUtil.showToken;
+        if(showToken != null) {
+            Optional<Show> show = this.showRepository.findByShowToken(showToken);
+            if(show.isPresent()) {
+                Show existingShow = show.get();
+                existingShow.setLastFppHeartbeat(LocalDateTime.now());
+                this.showRepository.save(existingShow);
+            }
+        }
+    }
 }

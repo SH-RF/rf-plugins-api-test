@@ -96,4 +96,10 @@ public class PluginController {
   public ResponseEntity<PluginResponse> updateManagedPsa(@RequestBody ManagedPSARequest request) {
     return this.pluginService.updateManagedPsa(request);
   }
+
+  @PostMapping(value = "/fppHeartbeat")
+  @RequiresAccess
+  public void fppHeartbeat() {
+    this.pluginService.fppHeartbeat();
+  }
 }

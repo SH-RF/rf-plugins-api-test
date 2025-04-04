@@ -139,7 +139,17 @@
         <dependency>
             <groupId>com.github.Remote-Falcon</groupId>
             <artifactId>remote-falcon-library</artifactId>
-            <version>b5002e930a</version>
+            <version>268c1b921a</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-mongodb-panache</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-smallrye-graphql</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!--TESTING-->
