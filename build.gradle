@@ -1,0 +1,53 @@
+plugins {
+    id 'java'
+    id 'io.quarkus'
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+    maven {
+        url 'https://jitpack.io'
+    }
+}
+
+dependencies {
+    implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation 'io.quarkus:quarkus-mongodb-panache'
+    implementation 'io.quarkus:quarkus-arc'
+    implementation 'io.quarkus:quarkus-opentelemetry'
+    implementation 'io.quarkus:quarkus-undertow'
+    implementation 'org.apache.commons:commons-lang3:3.x'
+    implementation 'commons-collections:commons-collections:3.2.2'
+    implementation ('com.github.Remote-Falcon:remote-falcon-library:685018c867') {
+        exclude group: "org.springframework.boot", module: "spring-boot-starter-data-mongodb"
+    }
+    implementation 'io.quarkus:quarkus-smallrye-health'
+    implementation 'io.micrometer:micrometer-observation:1.12.0'
+    implementation 'io.quarkus:quarkus-rest'
+    implementation 'io.quarkus:quarkus-rest-jackson'
+    compileOnly 'org.projectlombok:lombok:1.18.36'
+    annotationProcessor 'org.projectlombok:lombok:1.18.36'
+    testImplementation 'io.quarkus:quarkus-junit5'
+    testImplementation 'io.rest-assured:rest-assured'
+}
+
+group 'com.remotefalcon'
+version '1.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+test {
+    systemProperty "java.util.logging.manager", "org.jboss.logmanager.LogManager"
+}
+compileJava {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-parameters'
+}
+
+compileTestJava {
+    options.encoding = 'UTF-8'
+}

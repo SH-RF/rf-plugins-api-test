@@ -9,7 +9,6 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class NextPlaylistResponse {
-  private String nextPlaylist;
-  private Integer playlistIndex;
+public class Health {
+    private String status;
 }

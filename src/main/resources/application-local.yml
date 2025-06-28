@@ -1,4 +1,0 @@
-server:
-  port: 8083
-  servlet:
-    context-path: /remote-falcon-plugins-api

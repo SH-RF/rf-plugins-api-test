@@ -1,99 +1,109 @@
 package com.remotefalcon.plugins.api.service;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-
-import lombok.extern.slf4j.Slf4j;
+import com.remotefalcon.library.enums.ViewerControlMode;
+import com.remotefalcon.library.models.*;
+import com.remotefalcon.library.quarkus.entity.Show;
+import com.remotefalcon.plugins.api.context.ShowContext;
+import com.remotefalcon.plugins.api.model.*;
+import com.remotefalcon.plugins.api.repository.ShowRepository;
+import jakarta.enterprise.context.RequestScoped;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
 
-import com.remotefalcon.library.documents.Show;
-import com.remotefalcon.library.enums.ViewerControlMode;
-import com.remotefalcon.library.models.PsaSequence;
-import com.remotefalcon.library.models.Request;
-import com.remotefalcon.library.models.Sequence;
-import com.remotefalcon.library.models.SequenceGroup;
-import com.remotefalcon.library.models.Stat;
-import com.remotefalcon.library.models.Vote;
-import com.remotefalcon.plugins.api.model.HighestVotedPlaylistResponse;
-import com.remotefalcon.plugins.api.model.ManagedPSARequest;
-import com.remotefalcon.plugins.api.model.NextPlaylistResponse;
-import com.remotefalcon.plugins.api.model.PluginVersion;
-import com.remotefalcon.plugins.api.model.RemotePreferenceResponse;
-import com.remotefalcon.plugins.api.model.SyncPlaylistDetails;
-import com.remotefalcon.plugins.api.model.SyncPlaylistRequest;
-import com.remotefalcon.plugins.api.model.UpdateNextScheduledRequest;
-import com.remotefalcon.plugins.api.model.UpdateWhatsPlayingRequest;
-import com.remotefalcon.plugins.api.model.ViewerControlRequest;
-import com.remotefalcon.plugins.api.repository.ShowRepository;
-import com.remotefalcon.plugins.api.response.PluginResponse;
-import com.remotefalcon.plugins.api.util.AuthUtil;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Response;
 
-import lombok.RequiredArgsConstructor;
-
-@Service
-@RequiredArgsConstructor
+@RequestScoped
 public class PluginService {
-    private final ShowRepository showRepository;
-    private final AuthUtil authUtil;
 
-    @Value("${sequence-limit}")
-    Integer sequenceLimit;
+    @Inject
+    ShowContext showContext;
 
-    public ResponseEntity<PluginResponse> viewerControlMode() {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
+    @Inject
+    ShowRepository showRepository;
+
+    @Inject
+    @ConfigProperty(name = "sequence.limit")
+    int sequenceLimit;
+
+    public NextPlaylistResponse nextPlaylistInQueue() {
+        Show show = showContext.getShow();
+        NextPlaylistResponse defaultResponse = NextPlaylistResponse.builder()
+                .nextPlaylist(null)
+                .playlistIndex(-1)
+                .build();
+        if(CollectionUtils.isEmpty(show.getRequests())) {
+            return defaultResponse;
         }
-        Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
-        if(optionalShow.isPresent()) {
-            Show show = optionalShow.get();
-            return ResponseEntity.status(200).body(PluginResponse.builder()
-                    .viewerControlMode(show.getPreferences().getViewerControlMode().name().toLowerCase())
-                    .build());
+        Optional<Request> nextRequest = show.getRequests().stream().min(Comparator.comparing(Request::getPosition));
+        if(nextRequest.isEmpty()) {
+            return defaultResponse;
         }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
+        this.updateVisibilityCounts(show, nextRequest.get());
+
+        show.getRequests().remove(nextRequest.get());
+
+        this.showRepository.persistOrUpdate(show);
+
+        return NextPlaylistResponse.builder()
+                .nextPlaylist(nextRequest.get().getSequence().getName())
+                .playlistIndex(nextRequest.get().getSequence().getIndex())
+                .build();
     }
 
-    public ResponseEntity<PluginResponse> syncPlaylists(SyncPlaylistRequest request) {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
+    private void updateVisibilityCounts(Show show, Request request) {
+        if(show.getPreferences().getHideSequenceCount() != 0) {
+            if(!StringUtils.isEmpty(request.getSequence().getGroup())) {
+                Optional<SequenceGroup> sequenceGroup = show.getSequenceGroups().stream()
+                        .filter((group) -> StringUtils.equalsIgnoreCase(group.getName(), request.getSequence().getGroup()))
+                        .findFirst();
+                sequenceGroup.ifPresent(group -> group.setVisibilityCount(show.getPreferences().getHideSequenceCount() + 1));
+            }else {
+                Optional<Sequence> sequence = show.getSequences().stream()
+                        .filter((seq) -> StringUtils.equalsIgnoreCase(seq.getName(), request.getSequence().getName()))
+                        .findFirst();
+                sequence.ifPresent(seq -> seq.setVisibilityCount(show.getPreferences().getHideSequenceCount() + 1));
+            }
         }
-        Optional<Show> show = this.showRepository.findByShowToken(showToken);
-        if(show.isPresent()) {
-          if(request.getPlaylists().size() > sequenceLimit) {
-            return ResponseEntity.status(400).body(PluginResponse.builder().message("Cannot sync more than " + sequenceLimit + " sequences").build());
-          }
-          Set<Sequence> updatedSequences = new HashSet<>();
-          updatedSequences.addAll(this.getSequencesToDelete(request, show.get()));
-          updatedSequences.addAll(this.addNewSequences(request, show.get()));
-          show.get().setSequences(updatedSequences.stream().toList());
+    }
 
-          List<PsaSequence> updatedPsaSequences = this.updatePsaSequences(request, show.get());
-          show.get().setPsaSequences(updatedPsaSequences);
-          if(CollectionUtils.isEmpty(updatedPsaSequences)) {
-              show.get().getPreferences().setPsaEnabled(false);
-          }
-
-          this.showRepository.save(show.get());
-          return ResponseEntity.status(200).body(PluginResponse.builder().message("Success").build());
+    public PluginResponse updatePlaylistQueue() {
+        Show show = showContext.getShow();
+        if (CollectionUtils.isEmpty(show.getRequests())) {
+            return PluginResponse.builder().message("Queue Empty").build();
+        } else {
+            return PluginResponse.builder().message("Success").build();
         }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
+    }
+
+    public PluginResponse syncPlaylists(SyncPlaylistRequest request) {
+        Show show = showContext.getShow();
+        if (request.getPlaylists().size() > this.sequenceLimit) {
+            throw new WebApplicationException(
+                    Response.status(Response.Status.BAD_REQUEST)
+                            .entity(PluginResponse.builder().message("Cannot sync more than " + this.sequenceLimit + " sequences").build())
+                            .build()
+            );
+        }
+        Set<Sequence> updatedSequences = new HashSet<>();
+        updatedSequences.addAll(this.getSequencesToDelete(request, show));
+        updatedSequences.addAll(this.addNewSequences(request, show));
+        show.setSequences(updatedSequences.stream().toList());
+
+        List<PsaSequence> updatedPsaSequences = this.updatePsaSequences(request, show);
+        show.setPsaSequences(updatedPsaSequences);
+        if(CollectionUtils.isEmpty(updatedPsaSequences)) {
+            show.getPreferences().setPsaEnabled(false);
+        }
+
+        this.showRepository.persistOrUpdate(show);
+        return PluginResponse.builder().message("Success").build();
     }
 
     private List<Sequence> getSequencesToDelete(SyncPlaylistRequest request, Show show) {
@@ -164,84 +174,67 @@ public class PluginService {
         return updatedPsaSequences;
     }
 
-    public ResponseEntity<PluginResponse> updateWhatsPlaying(UpdateWhatsPlayingRequest request) {
+    public PluginResponse updateWhatsPlaying(UpdateWhatsPlayingRequest request) {
         if(request == null || StringUtils.isEmpty(request.getPlaylist())) {
-          return ResponseEntity.status(200).body(PluginResponse.builder().build());
+            return PluginResponse.builder().build();
         }
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
+        Show show = showContext.getShow();
+        if(show.getPreferences() == null) {
+            throw new WebApplicationException(
+                    Response.status(Response.Status.BAD_REQUEST)
+                            .entity(PluginResponse.builder().message("Preferences not found").build())
+                            .build()
+            );
         }
-        Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
-        if(optionalShow.isPresent()) {
-            Show show = optionalShow.get();
-            if(show.getPreferences() == null) {
-              return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Preferences not found")
-                .build());
-            }
-            if(StringUtils.isEmpty(request.getPlaylist())) {
-              show.setPlayingNow("");
-              show.setPlayingNext("");
-              show.setPlayingNextFromSchedule("");
-              return ResponseEntity.status(200).body(PluginResponse.builder().currentPlaylist(request.getPlaylist()).build());
-            }else {
-              show.setPlayingNow(request.getPlaylist());
-            }
-            int sequencesPlayed = show.getPreferences().getSequencesPlayed() != null ? show.getPreferences().getSequencesPlayed() : 0;
-            Optional<Sequence> whatsPlayingSequence = show.getSequences().stream()
-                    .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), request.getPlaylist()))
-                    .findFirst();
-            Optional<PsaSequence> psaSequence = show.getPsaSequences().stream()
-                    .filter(psa -> StringUtils.equalsIgnoreCase(psa.getName(), request.getPlaylist()))
-                    .findFirst();
-            if(psaSequence.isPresent()) {
-                sequencesPlayed = 0;
-            }else {
-                sequencesPlayed++;
-            }
-            if(whatsPlayingSequence.isPresent() && StringUtils.isNotEmpty(whatsPlayingSequence.get().getGroup())) {
-                sequencesPlayed--;
-            }
-            show.getPreferences().setSequencesPlayed(sequencesPlayed);
-
-            Set<Sequence> sequenceSet = show.getSequences().stream()
-                    .peek(sequence -> {
-                        if(sequence.getVisibilityCount() > 0) {
-                            sequence.setVisibilityCount(sequence.getVisibilityCount() - 1);
-                        }
-                    }).collect(Collectors.toSet());
-
-            show.setSequences(sequenceSet.stream().toList());
-
-            show.setSequenceGroups(show.getSequenceGroups().stream()
-                    .peek(sequenceGroup -> {
-                        if(sequenceGroup.getVisibilityCount() > 0) {
-                            sequenceGroup.setVisibilityCount(sequenceGroup.getVisibilityCount() - 1);
-                        }
-                    }).toList());
-
-            //Managed PSA
-            this.handleManagedPSA(sequencesPlayed, show);
-
-            this.clearViewersVotedAndRequested(show);
-
-            this.showRepository.save(show);
-
-            return ResponseEntity.status(200).body(PluginResponse.builder().currentPlaylist(request.getPlaylist()).build());
+        if(StringUtils.isEmpty(request.getPlaylist())) {
+            show.setPlayingNow("");
+            show.setPlayingNext("");
+            show.setPlayingNextFromSchedule("");
+            return PluginResponse.builder().currentPlaylist(request.getPlaylist()).build();
+        }else {
+            show.setPlayingNow(request.getPlaylist());
         }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
-    }
+        int sequencesPlayed = show.getPreferences().getSequencesPlayed() != null ? show.getPreferences().getSequencesPlayed() : 0;
+        Optional<Sequence> whatsPlayingSequence = show.getSequences().stream()
+                .filter(sequence -> StringUtils.equalsIgnoreCase(sequence.getName(), request.getPlaylist()))
+                .findFirst();
+        Optional<PsaSequence> psaSequence = show.getPsaSequences().stream()
+                .filter(psa -> StringUtils.equalsIgnoreCase(psa.getName(), request.getPlaylist()))
+                .findFirst();
+        if(psaSequence.isPresent()) {
+            sequencesPlayed = 0;
+        }else {
+            sequencesPlayed++;
+        }
+        if(whatsPlayingSequence.isPresent() && StringUtils.isNotEmpty(whatsPlayingSequence.get().getGroup())) {
+            sequencesPlayed--;
+        }
+        show.getPreferences().setSequencesPlayed(sequencesPlayed);
 
-    private void clearViewersVotedAndRequested(Show show) {
-        if(CollectionUtils.isNotEmpty(show.getRequests())) {
-            show.getRequests().forEach(request -> request.setViewerRequested(null));
-        }
-        if(CollectionUtils.isNotEmpty(show.getVotes())) {
-            show.getVotes().forEach(vote -> vote.setViewersVoted(new ArrayList<>()));
-        }
+        Set<Sequence> sequenceSet = show.getSequences().stream()
+                .peek(sequence -> {
+                    if(sequence.getVisibilityCount() > 0) {
+                        sequence.setVisibilityCount(sequence.getVisibilityCount() - 1);
+                    }
+                }).collect(Collectors.toSet());
+
+        show.setSequences(sequenceSet.stream().toList());
+
+        show.setSequenceGroups(show.getSequenceGroups().stream()
+                .peek(sequenceGroup -> {
+                    if(sequenceGroup.getVisibilityCount() > 0) {
+                        sequenceGroup.setVisibilityCount(sequenceGroup.getVisibilityCount() - 1);
+                    }
+                }).toList());
+
+        //Managed PSA
+        this.handleManagedPSA(sequencesPlayed, show);
+
+        this.clearViewersVotedAndRequested(show);
+
+        this.showRepository.persistOrUpdate(show);
+
+        return PluginResponse.builder().currentPlaylist(request.getPlaylist()).build();
     }
 
     private void handleManagedPSA(int sequencesPlayed, Show show) {
@@ -250,7 +243,7 @@ public class PluginService {
                     && show.getPreferences().getPsaFrequency() != null && show.getPreferences().getPsaFrequency() > 0) {
                 if(sequencesPlayed % show.getPreferences().getPsaFrequency() == 0) {
                     Optional<PsaSequence> nextPsaSequence = show.getPsaSequences().stream()
-                            .filter(psaSequence -> psaSequence != null)
+                            .filter(Objects::nonNull)
                             .filter(psaSequence -> psaSequence.getLastPlayed() != null)
                             .filter(psaSequence -> psaSequence.getOrder() != null)
                             .min(Comparator.comparing(PsaSequence::getLastPlayed)
@@ -283,14 +276,14 @@ public class PluginService {
                     .lastVoteTime(LocalDateTime.now())
                     .votes(2000)
                     .build());
-            this.showRepository.save(show);
+            this.showRepository.persistOrUpdate(show);
         }
         show.getRequests().add(Request.builder()
                 .sequence(requestedSequence)
                 .ownerRequested(false)
                 .position(0)
                 .build());
-        this.showRepository.save(show);
+        this.showRepository.persistOrUpdate(show);
     }
 
     private void setPSASequenceVote(Show show, Sequence requestedSequence) {
@@ -303,109 +296,70 @@ public class PluginService {
                     .lastVoteTime(LocalDateTime.now())
                     .votes(2000)
                     .build());
-            this.showRepository.save(show);
+            this.showRepository.persistOrUpdate(show);
         }
     }
 
-    public ResponseEntity<PluginResponse> updateNextScheduledSequence(UpdateNextScheduledRequest request) {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
+    private void clearViewersVotedAndRequested(Show show) {
+        if(CollectionUtils.isNotEmpty(show.getRequests())) {
+            show.getRequests().forEach(request -> request.setViewerRequested(null));
         }
-        Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
-        if(optionalShow.isPresent()) {
-            Show show = optionalShow.get();
-            if(show.getPreferences() == null) {
-              return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Preferences not found")
-                .build());
-            }
-            if(StringUtils.isEmpty(request.getSequence())) {
-              show.setPlayingNow("");
-              show.setPlayingNext("");
-              show.setPlayingNextFromSchedule("");
-            }else {
-              show.setPlayingNextFromSchedule(request.getSequence());
-            }
-            this.showRepository.save(show);
-            return ResponseEntity.status(200).body(PluginResponse.builder().nextScheduledSequence(request.getSequence()).build());
+        if(CollectionUtils.isNotEmpty(show.getVotes())) {
+            show.getVotes().forEach(vote -> vote.setViewersVoted(new ArrayList<>()));
         }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
     }
 
-    public ResponseEntity<NextPlaylistResponse> nextPlaylistInQueue(Boolean updateQueue) {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
+    public PluginResponse updateNextScheduledSequence(UpdateNextScheduledRequest request) {
+        Show show = showContext.getShow();
+        if(show.getPreferences() == null) {
+            throw new WebApplicationException(
+                    Response.status(Response.Status.BAD_REQUEST)
+                            .entity(PluginResponse.builder().message("Preferences not found").build())
+                            .build()
+            );
         }
-        Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
-        NextPlaylistResponse defaultResponse = NextPlaylistResponse.builder()
-                .nextPlaylist(null)
-                .playlistIndex(-1)
-                .updateQueue(updateQueue)
+        if(StringUtils.isEmpty(request.getSequence())) {
+            show.setPlayingNow("");
+            show.setPlayingNext("");
+            show.setPlayingNextFromSchedule("");
+        }else {
+            show.setPlayingNextFromSchedule(request.getSequence());
+        }
+        this.showRepository.persistOrUpdate(show);
+        return PluginResponse.builder().nextScheduledSequence(request.getSequence()).build();
+    }
+
+    public PluginResponse viewerControlMode() {
+        Show show = showContext.getShow();
+        String viewerControlMode = show.getPreferences().getViewerControlMode().name().toLowerCase();
+        return PluginResponse.builder()
+                .viewerControlMode(viewerControlMode)
                 .build();
-        if(optionalShow.isPresent()) {
-            Show show = optionalShow.get();
-            if(CollectionUtils.isEmpty(show.getRequests())) {
-                return ResponseEntity.status(200).body(defaultResponse);
-            }
-            Optional<Request> nextRequest = show.getRequests().stream().min(Comparator.comparing(Request::getPosition));
-            if(nextRequest.isEmpty()) {
-                return ResponseEntity.status(200).body(defaultResponse);
-            }
-            this.updateVisibilityCounts(show, nextRequest.get());
-
-            show.getRequests().remove(nextRequest.get());
-
-            this.showRepository.save(show);
-
-            return ResponseEntity.status(200).body(NextPlaylistResponse.builder()
-                    .nextPlaylist(nextRequest.get().getSequence().getName())
-                    .playlistIndex(nextRequest.get().getSequence().getIndex())
-                    .updateQueue(updateQueue)
-                    .build());
-        }
-        return ResponseEntity.status(400).body(NextPlaylistResponse.builder()
-                .nextPlaylist(null)
-                .playlistIndex(-1)
-                .updateQueue(updateQueue)
-                .build());
     }
 
-    public ResponseEntity<HighestVotedPlaylistResponse> highestVotedPlaylist() {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Optional<Show> optionalShow = this.showRepository.findByShowToken(showToken);
+    public HighestVotedPlaylistResponse highestVotedPlaylist() {
+        Show show = showContext.getShow();
         HighestVotedPlaylistResponse response = HighestVotedPlaylistResponse.builder()
                 .winningPlaylist(null)
                 .playlistIndex(-1)
                 .build();
-        if(optionalShow.isPresent()) {
-            Show show = optionalShow.get();
-
-            //Get the sequence with the most votes. If there is a tie, get the sequence with the earliest vote time
-            if(CollectionUtils.isNotEmpty(show.getVotes())) {
-                Optional<Vote> winningVote = show.getVotes().stream()
-                        .max(Comparator.comparing(Vote::getVotes)
-                                .thenComparing(Comparator.comparing(Vote::getLastVoteTime).reversed()));
-                if(winningVote.isPresent()) {
-                    SequenceGroup winningSequenceGroup = winningVote.get().getSequenceGroup();
-                    if(winningSequenceGroup != null) {
-                        return ResponseEntity.status(200).body(this.processWinningGroup(winningVote.get(), show));
-                    }else {
-                        return ResponseEntity.status(200).body(this.processWinningVote(winningVote.get(), show));
-                    }
+        //Get the sequence with the most votes. If there is a tie, get the sequence with the earliest vote time
+        if(CollectionUtils.isNotEmpty(show.getVotes())) {
+            Optional<Vote> winningVote = show.getVotes().stream()
+                    .max(Comparator.comparing(Vote::getVotes)
+                            .thenComparing(Comparator.comparing(Vote::getLastVoteTime).reversed()));
+            if(winningVote.isPresent()) {
+                SequenceGroup winningSequenceGroup = winningVote.get().getSequenceGroup();
+                if(winningSequenceGroup != null) {
+                    return this.processWinningGroup(winningVote.get(), show);
+                }else {
+                    return this.processWinningVote(winningVote.get(), show);
                 }
             }
-            this.showRepository.save(show);
-
-            return ResponseEntity.status(200).body(response);
         }
-        return ResponseEntity.status(400).body(response);
+        this.showRepository.persistOrUpdate(show);
+
+        return response;
     }
 
     private HighestVotedPlaylistResponse processWinningGroup(Vote winningVote, Show show) {
@@ -441,11 +395,11 @@ public class PluginService {
                         .votes(voteCount)
                         .lastVoteTime(LocalDateTime.now())
                         .ownerVoted(false)
-                        .sequence(sequencesInGroup.get(0))
+                        .sequence(sequencesInGroup.getFirst())
                         .build();
                 voteCount--;
 
-                sequencesInGroup.remove(0);
+                sequencesInGroup.removeFirst();
 
                 List<Vote> sequencesInGroupVotes = new ArrayList<>();
                 for(Sequence groupedSequence : sequencesInGroup) {
@@ -501,7 +455,7 @@ public class PluginService {
                 }
 
                 if(show.getPreferences().getPsaEnabled() && !show.getPreferences().getManagePsa()
-                   && CollectionUtils.isNotEmpty(show.getPsaSequences()) && StringUtils.isEmpty(actualSequence.get().getGroup()) && !winningSequenceIsPSA) {
+                        && CollectionUtils.isNotEmpty(show.getPsaSequences()) && StringUtils.isEmpty(actualSequence.get().getGroup()) && !winningSequenceIsPSA) {
                     Integer voteWinsToday = show.getStats().getVotingWin().stream()
                             .filter(stat -> stat.getDateTime().isAfter(LocalDateTime.now().withHour(0).withMinute(0).withSecond(0)))
                             .toList()
@@ -510,7 +464,7 @@ public class PluginService {
                             .anyMatch(psaSequence -> StringUtils.equalsIgnoreCase(show.getPlayingNow(), psaSequence.getName()));
                     if(voteWinsToday % show.getPreferences().getPsaFrequency() == 0 && !isPSAPlayingNow) {
                         Optional<PsaSequence> nextPsaSequence = show.getPsaSequences().stream()
-                                .filter(psaSequence -> psaSequence != null)
+                                .filter(Objects::nonNull)
                                 .filter(psaSequence -> psaSequence.getLastPlayed() != null)
                                 .filter(psaSequence -> psaSequence.getOrder() != null)
                                 .min(Comparator.comparing(PsaSequence::getLastPlayed)
@@ -523,8 +477,8 @@ public class PluginService {
                             //Final Sanity check
                             List<String> psaSequences = show.getPsaSequences().stream().map(PsaSequence::getName).toList();
                             boolean isPsaInVotes = show.getVotes().stream().anyMatch(vote -> (vote.getSequence() != null
-                              && vote.getSequence().getName() != null
-                              && psaSequences.contains(vote.getSequence().getName())));
+                                    && vote.getSequence().getName() != null
+                                    && psaSequences.contains(vote.getSequence().getName())));
                             if(!isPsaInVotes) {
                                 sequenceToAdd.ifPresent(sequence -> show.getVotes().add(Vote.builder()
                                         .sequence(sequence)
@@ -537,7 +491,7 @@ public class PluginService {
                     }
                 }
 
-                this.showRepository.save(show);
+                this.showRepository.persistOrUpdate(show);
 
                 //Return winning sequence
                 return HighestVotedPlaylistResponse.builder()
@@ -549,164 +503,76 @@ public class PluginService {
         return null;
     }
 
-    private void updateVisibilityCounts(Show show, Request request) {
-        if(show.getPreferences().getHideSequenceCount() != 0) {
-            if(!StringUtils.isEmpty(request.getSequence().getGroup())) {
-                Optional<SequenceGroup> sequenceGroup = show.getSequenceGroups().stream()
-                        .filter((group) -> StringUtils.equalsIgnoreCase(group.getName(), request.getSequence().getGroup()))
-                        .findFirst();
-                sequenceGroup.ifPresent(group -> group.setVisibilityCount(show.getPreferences().getHideSequenceCount() + 1));
-            }else {
-                Optional<Sequence> sequence = show.getSequences().stream()
-                        .filter((seq) -> StringUtils.equalsIgnoreCase(seq.getName(), request.getSequence().getName()))
-                        .findFirst();
-                sequence.ifPresent(seq -> seq.setVisibilityCount(show.getPreferences().getHideSequenceCount() + 1));
-            }
-        }
+    public PluginResponse pluginVersion(PluginVersion request) {
+        Show show = showContext.getShow();
+        show.setPluginVersion(request.getPluginVersion());
+        show.setFppVersion(request.getFppVersion());
+        this.showRepository.persistOrUpdate(show);
+        return PluginResponse.builder().message("Success").build();
     }
 
-    public ResponseEntity<PluginResponse> updatePlaylistQueue() {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Optional<Show> show = this.showRepository.findByShowToken(showToken);
-        if(show.isPresent()) {
-            if (CollectionUtils.isEmpty(show.get().getRequests())) {
-                return ResponseEntity.status(200).body(PluginResponse.builder().message("Queue Empty").build());
-            } else {
-                return ResponseEntity.status(200).body(PluginResponse.builder().message("Success").build());
-            }
-        }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
+    public RemotePreferenceResponse remotePreferences() {
+        Show show = showContext.getShow();
+        return RemotePreferenceResponse.builder()
+                .remoteSubdomain(show.getShowSubdomain())
+                .viewerControlMode(show.getPreferences().getViewerControlMode().name().toLowerCase())
+                .build();
     }
 
-    public ResponseEntity<PluginResponse> pluginVersion(PluginVersion request) {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Optional<Show> show = this.showRepository.findByShowToken(showToken);
-        if(show.isPresent()) {
-            show.get().setPluginVersion(request.getPluginVersion());
-            show.get().setFppVersion(request.getFppVersion());
-            this.showRepository.save(show.get());
-            return ResponseEntity.status(200).body(PluginResponse.builder().message("Success").build());
-        }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
+    public PluginResponse purgeQueue() {
+        Show show = showContext.getShow();
+        show.setRequests(new ArrayList<>());
+        show.setVotes(new ArrayList<>());
+        this.showRepository.persistOrUpdate(show);
+        return PluginResponse.builder().message("Success").build();
     }
 
-    public ResponseEntity<RemotePreferenceResponse> remotePreferences() {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Optional<Show> show = this.showRepository.findByShowToken(showToken);
-        return show.map(value -> ResponseEntity.status(200).body(RemotePreferenceResponse.builder()
-                .remoteSubdomain(value.getShowSubdomain())
-                .viewerControlMode(value.getPreferences().getViewerControlMode().name().toLowerCase())
-                .build())).orElseGet(() -> ResponseEntity.status(400).build());
+    public PluginResponse resetAllVotes() {
+        Show show = showContext.getShow();
+        show.setVotes(new ArrayList<>());
+        this.showRepository.persistOrUpdate(show);
+        return PluginResponse.builder().message("Success").build();
     }
 
-    public ResponseEntity<PluginResponse> purgeQueue() {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Optional<Show> show = this.showRepository.findByShowToken(showToken);
-        if(show.isPresent()) {
-            show.get().setRequests(new ArrayList<>());
-            show.get().setVotes(new ArrayList<>());
-            this.showRepository.save(show.get());
-            return ResponseEntity.status(200).body(PluginResponse.builder().message("Success").build());
-        }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
+    public PluginResponse toggleViewerControl() {
+        Show show = showContext.getShow();
+        show.getPreferences().setViewerControlEnabled(!show.getPreferences().getViewerControlEnabled());
+        show.getPreferences().setSequencesPlayed(0);
+        this.showRepository.persistOrUpdate(show);
+        return PluginResponse.builder().viewerControlEnabled(!show.getPreferences().getViewerControlEnabled()).build();
     }
 
-    public ResponseEntity<PluginResponse> resetAllVotes() {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
+    public PluginResponse updateViewerControl(ViewerControlRequest request) {
+        Show show = showContext.getShow();
+        if(show.getPreferences() == null) {
+            throw new WebApplicationException(
+                    Response.status(Response.Status.BAD_REQUEST)
+                            .entity(PluginResponse.builder().message("Preferences not found").build())
+                            .build()
+            );
         }
-        Optional<Show> show = this.showRepository.findByShowToken(showToken);
-        if(show.isPresent()) {
-            show.get().setVotes(new ArrayList<>());
-            this.showRepository.save(show.get());
-            return ResponseEntity.status(200).body(PluginResponse.builder().message("Success").build());
-        }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
+        show.getPreferences().setViewerControlEnabled(StringUtils.equalsIgnoreCase("Y", request.getViewerControlEnabled())); //HERE
+        this.showRepository.persistOrUpdate(show);
+        return PluginResponse.builder().viewerControlEnabled(StringUtils.equalsIgnoreCase("Y", request.getViewerControlEnabled())).build();
     }
 
-    public ResponseEntity<PluginResponse> toggleViewerControl() {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
+    public PluginResponse updateManagedPsa(ManagedPSARequest request) {
+        Show show = showContext.getShow();
+        if(show.getPreferences() == null) {
+            throw new WebApplicationException(
+                    Response.status(Response.Status.BAD_REQUEST)
+                            .entity(PluginResponse.builder().message("Preferences not found").build())
+                            .build()
+            );
         }
-        Optional<Show> show = this.showRepository.findByShowToken(showToken);
-        if(show.isPresent()) {
-            show.get().getPreferences().setViewerControlEnabled(!show.get().getPreferences().getViewerControlEnabled());
-            show.get().getPreferences().setSequencesPlayed(0);
-            this.showRepository.save(show.get());
-            return ResponseEntity.status(200).body(PluginResponse.builder().viewerControlEnabled(!show.get().getPreferences().getViewerControlEnabled()).build());
-        }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
-    }
-
-    public ResponseEntity<PluginResponse> updateViewerControl(ViewerControlRequest request) {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Optional<Show> show = this.showRepository.findByShowToken(showToken);
-        if(show.isPresent()) {
-            if(show.get().getPreferences() == null) {return ResponseEntity.status(400).body(PluginResponse.builder()
-              .message("Preferences not found")
-              .build());
-            }
-            show.get().getPreferences().setViewerControlEnabled(StringUtils.equalsIgnoreCase("Y", request.getViewerControlEnabled())); //HERE
-            this.showRepository.save(show.get());
-            return ResponseEntity.status(200).body(PluginResponse.builder().viewerControlEnabled(StringUtils.equalsIgnoreCase("Y", request.getViewerControlEnabled())).build());
-        }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
-    }
-
-    public ResponseEntity<PluginResponse> updateManagedPsa(ManagedPSARequest request) {
-        String showToken = this.authUtil.showToken;
-        if(showToken == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Optional<Show> show = this.showRepository.findByShowToken(showToken);
-        if(show.isPresent()) {
-            show.get().getPreferences().setManagePsa(StringUtils.equalsIgnoreCase("Y", request.getManagedPsaEnabled()));
-            this.showRepository.save(show.get());
-            return ResponseEntity.status(200).body(PluginResponse.builder().managedPsaEnabled(StringUtils.equalsIgnoreCase("Y", request.getManagedPsaEnabled())).build());
-        }
-        return ResponseEntity.status(400).body(PluginResponse.builder()
-                .message("Show not found")
-                .build());
+        show.getPreferences().setManagePsa(StringUtils.equalsIgnoreCase("Y", request.getManagedPsaEnabled()));
+        this.showRepository.persistOrUpdate(show);
+        return PluginResponse.builder().managedPsaEnabled(StringUtils.equalsIgnoreCase("Y", request.getManagedPsaEnabled())).build();
     }
 
     public void fppHeartbeat() {
-        String showToken = this.authUtil.showToken;
-        if(showToken != null) {
-            Optional<Show> show = this.showRepository.findByShowToken(showToken);
-            if(show.isPresent()) {
-                Show existingShow = show.get();
-                existingShow.setLastFppHeartbeat(LocalDateTime.now());
-                this.showRepository.save(existingShow);
-            }
-        }
+        Show show = showContext.getShow();
+        show.setLastFppHeartbeat(LocalDateTime.now());
+        this.showRepository.persistOrUpdate(show);
     }
 }

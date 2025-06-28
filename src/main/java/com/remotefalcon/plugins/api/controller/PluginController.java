@@ -1,105 +1,138 @@
 package com.remotefalcon.plugins.api.controller;
 
-import com.remotefalcon.plugins.api.aop.RequiresAccess;
 import com.remotefalcon.plugins.api.model.*;
-import com.remotefalcon.plugins.api.response.PluginResponse;
 import com.remotefalcon.plugins.api.service.PluginService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import jakarta.inject.Inject;
+import jakarta.json.Json;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
 
-@RestController
-@RequiredArgsConstructor
+@Path("/")
 public class PluginController {
-  private final PluginService pluginService;
 
-  @GetMapping(value = "/nextPlaylistInQueue")
-  @RequiresAccess
-  public ResponseEntity<NextPlaylistResponse> nextPlaylistInQueue(@RequestParam(name = "updateQueue", required = false) Boolean updateQueue) {
-    return this.pluginService.nextPlaylistInQueue(updateQueue);
-  }
+    @Inject
+    PluginService pluginService;
 
-  @PostMapping(value = "/updatePlaylistQueue")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> updatePlaylistQueue() {
-    return this.pluginService.updatePlaylistQueue();
-  }
+    @GET
+    @Path("/nextPlaylistInQueue")
+    @Produces(MediaType.APPLICATION_JSON)
+    public NextPlaylistResponse nextPlaylistInQueue() {
+        return this.pluginService.nextPlaylistInQueue();
+    }
 
-  @PostMapping(value = "/syncPlaylists")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> syncPlaylists(@RequestBody SyncPlaylistRequest request) {
-    return this.pluginService.syncPlaylists(request);
-  }
+    @POST
+    @Path("/updatePlaylistQueue")
+    @Produces(MediaType.APPLICATION_JSON)
+    public PluginResponse updatePlaylistQueue() {
+        return this.pluginService.updatePlaylistQueue();
+    }
 
-  @PostMapping(value = "/updateWhatsPlaying")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> updateWhatsPlaying(@RequestBody UpdateWhatsPlayingRequest request) {
-    return this.pluginService.updateWhatsPlaying(request);
-  }
+    @POST
+    @Path("/syncPlaylists")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
+    public PluginResponse syncPlaylists(SyncPlaylistRequest request) {
+        return this.pluginService.syncPlaylists(request);
+    }
 
-  @PostMapping(value = "/updateNextScheduledSequence")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> updateNextScheduledSequence(@RequestBody UpdateNextScheduledRequest request) {
-    return this.pluginService.updateNextScheduledSequence(request);
-  }
+    @POST
+    @Path("/updateWhatsPlaying")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
+    public PluginResponse updateWhatsPlaying(UpdateWhatsPlayingRequest request) {
+        return this.pluginService.updateWhatsPlaying(request);
+    }
 
-  @GetMapping(value = "/viewerControlMode")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> viewerControlMode() {
-    return this.pluginService.viewerControlMode();
-  }
+    @POST
+    @Path("/updateNextScheduledSequence")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
+    public PluginResponse updateNextScheduledSequence(UpdateNextScheduledRequest request) {
+        return this.pluginService.updateNextScheduledSequence(request);
+    }
 
-  @GetMapping(value = "/highestVotedPlaylist")
-  @RequiresAccess
-  public ResponseEntity<HighestVotedPlaylistResponse> highestVotedPlaylist() {
-    return this.pluginService.highestVotedPlaylist();
-  }
+    @GET
+    @Path("/viewerControlMode")
+    @Produces(MediaType.APPLICATION_JSON)
+    public PluginResponse viewerControlMode() {
+        return this.pluginService.viewerControlMode();
+    }
 
-  @PostMapping(value = "/pluginVersion")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> pluginVersion(@RequestBody PluginVersion request) {
-    return this.pluginService.pluginVersion(request);
-  }
+    @GET
+    @Path("/highestVotedPlaylist")
+    @Produces(MediaType.APPLICATION_JSON)
+    public HighestVotedPlaylistResponse highestVotedPlaylist() {
+        return this.pluginService.highestVotedPlaylist();
+    }
 
-  @GetMapping(value = "/remotePreferences")
-  @RequiresAccess
-  public ResponseEntity<RemotePreferenceResponse> remotePreferences() {
-    return this.pluginService.remotePreferences();
-  }
+    @POST
+    @Path("/pluginVersion")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
+    public PluginResponse pluginVersion(PluginVersion request) {
+        return this.pluginService.pluginVersion(request);
+    }
 
-  @DeleteMapping(value = "/purgeQueue")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> purgeQueue() {
-    return this.pluginService.purgeQueue();
-  }
+    @GET
+    @Path("/remotePreferences")
+    @Produces(MediaType.APPLICATION_JSON)
+    public RemotePreferenceResponse remotePreferences() {
+        return this.pluginService.remotePreferences();
+    }
 
-  @DeleteMapping(value = "/resetAllVotes")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> resetAllVotes() {
-    return this.pluginService.resetAllVotes();
-  }
+    @DELETE
+    @Path("/purgeQueue")
+    @Produces(MediaType.APPLICATION_JSON)
+    public PluginResponse purgeQueue() {
+        return this.pluginService.purgeQueue();
+    }
 
-  @PostMapping(value = "/toggleViewerControl")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> toggleViewerControl() {
-    return this.pluginService.toggleViewerControl();
-  }
+    @DELETE
+    @Path("/resetAllVotes")
+    @Produces(MediaType.APPLICATION_JSON)
+    public PluginResponse resetAllVotes() {
+        return this.pluginService.resetAllVotes();
+    }
 
-  @PostMapping(value = "/updateViewerControl")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> updateViewerControl(@RequestBody ViewerControlRequest request) {
-    return this.pluginService.updateViewerControl(request);
-  }
+    @POST
+    @Path("/toggleViewerControl")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
+    public PluginResponse toggleViewerControl() {
+        return this.pluginService.toggleViewerControl();
+    }
 
-  @PostMapping(value = "/updateManagedPsa")
-  @RequiresAccess
-  public ResponseEntity<PluginResponse> updateManagedPsa(@RequestBody ManagedPSARequest request) {
-    return this.pluginService.updateManagedPsa(request);
-  }
+    @POST
+    @Path("/updateViewerControl")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
+    public PluginResponse updateViewerControl(ViewerControlRequest request) {
+        return this.pluginService.updateViewerControl(request);
+    }
 
-  @PostMapping(value = "/fppHeartbeat")
-  @RequiresAccess
-  public void fppHeartbeat() {
-    this.pluginService.fppHeartbeat();
-  }
+    @POST
+    @Path("/updateManagedPsa")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
+    public PluginResponse updateManagedPsa(ManagedPSARequest request) {
+        return this.pluginService.updateManagedPsa(request);
+    }
+
+    @POST
+    @Path("/fppHeartbeat")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
+    public void fppHeartbeat() {
+        this.pluginService.fppHeartbeat();
+    }
+
+    @GET
+    @Path("/actuator/health")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Health health() {
+        return Health.builder()
+                .status("UP")
+                .build();
+    }
 }

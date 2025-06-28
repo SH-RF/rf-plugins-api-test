@@ -1,10 +1,14 @@
 package com.remotefalcon.plugins.api.repository;
 
-import com.remotefalcon.library.documents.Show;
-import org.springframework.data.mongodb.repository.MongoRepository;
+import com.remotefalcon.library.quarkus.entity.Show;
+import io.quarkus.mongodb.panache.PanacheMongoRepository;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Optional;
 
-public interface ShowRepository extends MongoRepository<Show, String> {
-    Optional<Show> findByShowToken(String showToken);
+@ApplicationScoped
+public class ShowRepository implements PanacheMongoRepository<Show> {
+    public Optional<Show> findByShowToken(String showToken) {
+        return find("showToken", showToken).firstResultOptional();
+    }
 }

@@ -41,7 +41,8 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ steps.repository_string.outputs.lowercase }}:${{ github.sha }}
           build-args: |
-            OTEL_OPTS=
+            MONGO_URI=${{ secrets.MONGO_URI }}
+            OTEL_URI=${{ secrets.OTEL_URI }}
   release-production:
     name: Release Production
     environment: prod
@@ -65,11 +66,12 @@ jobs:
           Application: remote-falcon-plugins-api
           Version: ${{ github.sha }}
           Env: prod
-          Replicas: 2
+          Replicas.Min: 2
+          Replicas.Max: 4
           Image: ${{ env.REGISTRY }}/${{ steps.repository_string.outputs.lowercase }}:${{ github.sha }}
-          Requests.Memory: 1000Mi
+          Requests.Memory: 500Mi
           Requests.CPU: 500m
-          Limits.Memory: 1500Mi
+          Limits.Memory: 750Mi
           Limits.CPU: 750m
           Host: remotefalcon.com
 
