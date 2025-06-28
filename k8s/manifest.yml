@@ -81,10 +81,7 @@ metadata:
   namespace: #{Namespace}#
   annotations:
     kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/x-forwarded-prefix: /remote-falcon-plugins-api
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header X-Forwarded-Prefix "/remote-falcon-plugins-api";
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
 spec:
   rules:
     - host: #{Host}#
@@ -92,13 +89,6 @@ spec:
         paths:
         - pathType: Prefix
           path: /remote-falcon-plugins-api
-          backend:
-            service:
-              name: #{Application}#
-              port:
-                number: 8080
-        - pathType: Prefix
-          path: /remotefalcon/api
           backend:
             service:
               name: #{Application}#
