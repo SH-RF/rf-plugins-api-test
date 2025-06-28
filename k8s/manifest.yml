@@ -82,19 +82,20 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   rules:
     - host: #{Host}#
       http:
         paths:
-          - pathType: Prefix
+          - pathType: ImplementationSpecific
             path: /remote-falcon-plugins-api(/|$)(.*)
             backend:
               service:
                 name: #{Application}#
                 port:
                   number: 8080
-          - pathType: Prefix
+          - pathType: ImplementationSpecific
             path: /remotefalcon/api(/|$)(.*)
             backend:
               service:
