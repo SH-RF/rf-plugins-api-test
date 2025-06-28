@@ -40,21 +40,21 @@ spec:
             - containerPort: 8080
           startupProbe:
             httpGet:
-              path: /remote-falcon-plugins-api/q/health
+              path: /q/health
               port: 8080
             initialDelaySeconds: 0
             failureThreshold: 30
             periodSeconds: 1
           livenessProbe:
             httpGet:
-              path: /remote-falcon-plugins-api/q/health/live
+              path: /q/health/live
               port: 8080
             initialDelaySeconds: 0
             failureThreshold: 30
             periodSeconds: 1
           readinessProbe:
             httpGet:
-              path: /remote-falcon-plugins-api/q/health/ready
+              path: /q/health/ready
               port: 8080
             initialDelaySeconds: 0
             failureThreshold: 30
@@ -81,19 +81,26 @@ metadata:
   namespace: #{Namespace}#
   annotations:
     kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   rules:
     - host: #{Host}#
       http:
         paths:
-        - pathType: Prefix
-          path: /remote-falcon-plugins-api
-          backend:
-            service:
-              name: #{Application}#
-              port:
-                number: 8080
+          - pathType: Prefix
+            path: /remote-falcon-plugins-api(/|$)(.*)
+            backend:
+              service:
+                name: #{Application}#
+                port:
+                  number: 8080
+          - pathType: Prefix
+            path: /remotefalcon/api(/|$)(.*)
+            backend:
+              service:
+                name: #{Application}#
+                port:
+                  number: 8080
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
