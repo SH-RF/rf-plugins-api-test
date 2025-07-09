@@ -42,7 +42,7 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ steps.repository_string.outputs.lowercase }}:${{ github.sha }}
           build-args: |
             MONGO_URI=${{ secrets.MONGO_URI }}
-            OTEL_URI=${{ secrets.OTEL_URI }}
+            OTEL_URI=
   release-production:
     name: Release Production
     environment: prod
