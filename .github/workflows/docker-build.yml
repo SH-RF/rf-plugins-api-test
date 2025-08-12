@@ -38,7 +38,7 @@ jobs:
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
 
           # Date tag YYYYMMDD
-          DATE_TAG=$(date +'%Y%m%d')
+          DATE_TAG=$(date +'%Y.%m.%d')
           echo "date_tag=$DATE_TAG" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
