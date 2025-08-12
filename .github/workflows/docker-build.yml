@@ -1,51 +1,15 @@
-name: Sync Fork and Build Docker Image
+name: Build and Push Docker Image
 
 on:
-  schedule:
-    - cron: '12 * * * *'  # every hour (adjust as needed)
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 env:
-  GHCR_NAMESPACE: ne0n09
-  UPSTREAM_REPO: https://github.com/Remote-Falcon/remote-falcon-plugins-api.git 
+  GHCR_NAMESPACE: ne0n09  # Change to your GHCR username or org here
 
 jobs:
-  sync:
-    runs-on: ubuntu-latest
-    outputs:
-      synced: ${{ steps.push_changes.outputs.pushed }}
-
-    steps:
-      - name: Checkout fork
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Add upstream remote
-        run: git remote add upstream ${{ env.UPSTREAM_REPO }}
-
-      - name: Fetch upstream
-        run: git fetch upstream
-
-      - name: Merge upstream/main
-        run: |
-          git checkout main
-          git merge upstream/main --no-edit
-
-      - name: Push changes if any
-        id: push_changes
-        run: |
-          if git diff --quiet; then
-            echo "::set-output name=pushed::false"
-          else
-            git push origin main
-            echo "::set-output name=pushed::true"
-          fi
-
   build:
-    needs: sync
-    if: needs.sync.outputs.synced == 'true'
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -65,12 +29,15 @@ jobs:
       - name: Set variables
         id: vars
         run: |
+          # Lowercase repo name only (no owner)
           REPO_NAME=$(echo "${GITHUB_REPOSITORY##*/}" | tr '[:upper:]' '[:lower:]')
           echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
 
+          # Short SHA for tagging
           SHORT_SHA=${GITHUB_SHA::7}
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
 
+          # Date tag YYYYMMDD
           DATE_TAG=$(date +'%Y%m%d')
           echo "date_tag=$DATE_TAG" >> $GITHUB_OUTPUT
 
