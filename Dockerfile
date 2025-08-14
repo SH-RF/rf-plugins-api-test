@@ -28,3 +28,6 @@ ENTRYPOINT [ \
 "-Dquarkus.mongodb.connection-string=${MONGO_URI}", \
 "-Dquarkus.otel.exporter.otlp.endpoint=${OTEL_URI}" \
 ]
+
+
+# Testing
