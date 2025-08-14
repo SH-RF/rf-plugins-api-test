@@ -29,63 +29,36 @@ jobs:
       - name: Add upstream remote
         run: git remote add upstream https://github.com/${{ env.ORIGINAL_OWNER }}/${{ env.ORIGINAL_REPO }}.git
 
-      - name: Fetch upstream changes
+      - name: Fetch upstream
         run: git fetch upstream main
 
-      - name: Merge upstream changes into fork
-        id: merge
-        run: |
-          set +e
-          git merge upstream/main --no-edit
-          MERGE_STATUS=$?
-          set -e
-          echo "merge_status=$MERGE_STATUS" >> $GITHUB_OUTPUT
-
-      - name: Handle merge conflicts (create PR)
-        if: steps.merge.outputs.merge_status != '0'
-        run: |
-          echo "❌ Merge conflict detected. Creating PR..."
-          BRANCH="sync-$(date +'%Y%m%d%H%M%S')"
-          git merge --abort
-          git checkout -b "$BRANCH"
-          git fetch upstream
-          git merge upstream/main || true
-          git push origin "$BRANCH"
-          gh pr create \
-            --title "Sync from upstream" \
-            --body "Automatic PR to sync with upstream changes." \
-            --base main \
-            --head "$BRANCH"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      - name: Commit sync if upstream has changes
-        if: steps.merge.outputs.merge_status == '0'
-        run: |
-          if [[ -n "$(git status --porcelain)" ]]; then
-            git commit -am "Sync from upstream"
-            git push origin main
-          else
-            echo "✅ No upstream changes. Exiting."
-            exit 0
-          fi
-
-      - name: Check for changes
+      - name: Check for upstream changes
         id: check
         run: |
-          if [[ -n "$(git status --porcelain)" ]]; then
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-          else
+          LOCAL_HASH=$(git rev-parse origin/main)
+          UPSTREAM_HASH=$(git rev-parse upstream/main)
+          if [ "$LOCAL_HASH" = "$UPSTREAM_HASH" ]; then
+            echo "✅ No upstream changes detected."
             echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "🔄 Changes found."
+            echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
 
+      - name: Fast-forward merge from upstream
+        if: steps.check.outputs.has_changes == 'true'
+        id: merge
+        run: |
+          set -e
+          git checkout main
+          git merge --ff-only upstream/main
+          git push origin main
+
       - name: Generate version tags
-        if: steps.merge.outputs.merge_status == '0'
+        if: steps.check.outputs.has_changes == 'true'
         id: version
         run: |
-          TZ=America/Chicago
-          DATE_TAG=$(date +'%Y.%m.%d')
+          DATE_TAG=$(TZ=America/Chicago date +'%Y.%m.%d')
           SHORT_HASH=$(git rev-parse --short HEAD)
           echo "date_tag=$DATE_TAG" >> $GITHUB_OUTPUT
           echo "short_hash=$SHORT_HASH" >> $GITHUB_OUTPUT
@@ -111,14 +84,14 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.date_tag }}
-            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.short_sha }}
+            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.short_hash }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Create GitHub Release
-        if: steps.merge.outputs.merge_status == '0'
+        if: steps.check.outputs.has_changes == 'true'
         run: |
-          COMMITS=$(git log origin/main ^upstream/main --pretty=format:"- %s (%h)")
+          COMMITS=$(git log upstream/main..origin/main --pretty=format:"- %s (%h)")
           gh release create "${{ steps.version.outputs.date_tag }}" \
             --title "Release ${{ steps.version.outputs.date_tag }}" \
             --notes "$COMMITS"
