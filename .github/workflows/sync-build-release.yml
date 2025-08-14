@@ -6,8 +6,8 @@ on:
     - cron: "0 6 * * *" # Runs daily at 00:00 CST
 
 env:
-  ORIGINAL_OWNER: upstream-owner
-  ORIGINAL_REPO: upstream-repo
+  ORIGINAL_OWNER: Ne0n09
+  ORIGINAL_REPO: remote-falcon-plugins-api
   IMAGE_NAME: ghcr.io/${{ github.repository }}
   TZ: America/Chicago
 
