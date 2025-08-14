@@ -1,140 +1,98 @@
-name: Sync, Build, and Push Docker Image
+name: Sync, Build, and Release
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: "0 6 * * *" # Runs daily at 00:00 CST
 
 env:
-  ORIGINAL_OWNER: Ne0n09                     # Upstream owner
-  ORIGINAL_REPO: remote-falcon-plugins-api   # Upstream repo
-  GHCR_NAMESPACE: sh-rf                      # Your GHCR namespace (lowercase)
+  ORIGINAL_OWNER: upstream-owner
+  ORIGINAL_REPO: upstream-repo
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  TZ: America/Chicago
 
 jobs:
-  sync:
+  sync-build-release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-
     steps:
-      - name: Checkout your fork
+      - name: Checkout fork
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Add upstream remote
-        run: git remote add upstream https://github.com/${ORIGINAL_OWNER}/${ORIGINAL_REPO}.git
+        run: git remote add upstream https://github.com/${{ env.ORIGINAL_OWNER }}/${{ env.ORIGINAL_REPO }}.git
 
-      - name: Fetch upstream changes
-        run: git fetch upstream main
+      - name: Fetch upstream
+        run: git fetch upstream
 
-      - name: Merge upstream into fork
+      - name: Merge upstream changes
         id: merge
         run: |
+          set +e
+          git merge upstream/main --no-edit
+          MERGE_STATUS=$?
           set -e
-          git config user.name "${GITHUB_ACTOR}"
-          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-          if git merge --no-commit --no-ff upstream/main; then
-            echo "conflict=false" >> $GITHUB_OUTPUT
-          else
-            echo "conflict=true" >> $GITHUB_OUTPUT
-          fi
+          echo "merge_status=$MERGE_STATUS" >> $GITHUB_OUTPUT
 
-      - name: Commit and push if no conflicts
-        if: steps.merge.outputs.conflict == 'false'
+      - name: Handle merge conflicts (create PR)
+        if: steps.merge.outputs.merge_status != '0'
         run: |
-          git commit -m "Sync from upstream"
-          git push origin main
-
-      - name: Create pull request if conflicts
-        if: steps.merge.outputs.conflict == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          commit-message: "Merge upstream changes with conflicts"
-          title: "Sync from upstream (manual merge required)"
-          body: "Conflicts detected when syncing from upstream. Please review."
-          branch: upstream-sync
-
-  build:
-    runs-on: ubuntu-latest
-    needs: sync
-    if: ${{ needs.sync.result == 'success' }}
-    permissions:
-      packages: write
-      contents: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set variables
-        id: vars
-        run: |
-          REPO_NAME=$(basename "${GITHUB_REPOSITORY}")
-          echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
-
-          SHORT_SHA=${GITHUB_SHA::7}
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-
-          DATE_TAG=$(TZ="America/Chicago" date +'%Y.%m.%d')
-          echo "date_tag=$DATE_TAG" >> $GITHUB_OUTPUT
-
-          echo "TIMESTAMP=$(git log -1 --pretty=%ct)" >> $GITHUB_ENV
-
-          # Get last release tag
-          LAST_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' || echo "")
-          echo "last_tag=$LAST_TAG" >> $GITHUB_OUTPUT
+          echo "❌ Merge conflict detected. Creating PR..."
+          BRANCH="sync-$(date +'%Y%m%d%H%M%S')"
+          git merge --abort
+          git checkout -b "$BRANCH"
+          git fetch upstream
+          git merge upstream/main || true
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "Sync from upstream" \
+            --body "Automatic PR to sync with upstream changes." \
+            --base main \
+            --head "$BRANCH"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Commit sync changes
+        if: steps.merge.outputs.merge_status == '0'
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git commit -am "Sync from upstream"
+            git push origin main
+          else
+            echo "✅ No upstream changes. Exiting."
+            exit 0
+          fi
+
+      - name: Generate version tags
+        if: steps.merge.outputs.merge_status == '0'
+        id: version
+        run: |
+          DATE_TAG=$(date +'%Y.%m.%d')
+          SHORT_HASH=$(git rev-parse --short HEAD)
+          echo "date_tag=$DATE_TAG" >> $GITHUB_OUTPUT
+          echo "short_hash=$SHORT_HASH" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/${{ env.GHCR_NAMESPACE }}/${{ steps.vars.outputs.repo_name }}:latest
-            ghcr.io/${{ env.GHCR_NAMESPACE }}/${{ steps.vars.outputs.repo_name }}:${{ steps.vars.outputs.date_tag }}
-            ghcr.io/${{ env.GHCR_NAMESPACE }}/${{ steps.vars.outputs.repo_name }}:${{ steps.vars.outputs.short_sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-        env:
-          SOURCE_DATE_EPOCH: ${{ env.TIMESTAMP }}
-
-      - name: Get commit log since last release
-        id: changelog
+        if: steps.merge.outputs.merge_status == '0'
         run: |
-          if [ -n "${{ steps.vars.outputs.last_tag }}" ]; then
-            NOTES=$(git log ${{ steps.vars.outputs.last_tag }}..HEAD --pretty=format:"- %s" --reverse)
-          else
-            NOTES=$(git log --pretty=format:"- %s" --reverse)
-          fi
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker build -t ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.date_tag }}-${{ steps.version.outputs.short_hash }} .
+          docker push ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.date_tag }}-${{ steps.version.outputs.short_hash }}
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.vars.outputs.date_tag }}
-          name: Release ${{ steps.vars.outputs.date_tag }}
-          body: ${{ steps.changelog.outputs.notes }}
+        if: steps.merge.outputs.merge_status == '0'
+        run: |
+          COMMITS=$(git log origin/main ^upstream/main --pretty=format:"- %s (%h)")
+          gh release create "${{ steps.version.outputs.date_tag }}" \
+            --title "Release ${{ steps.version.outputs.date_tag }}" \
+            --notes "$COMMITS"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create short hash tag
-        run: |
-          git tag ${{ steps.vars.outputs.short_sha }}
-          git push origin ${{ steps.vars.outputs.short_sha }}
