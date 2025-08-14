@@ -9,7 +9,7 @@ env:
   ORIGINAL_OWNER: Ne0n09                     # Upstream owner
   ORIGINAL_REPO: remote-falcon-plugins-api   # Upstream repo
   GHCR_NAMESPACE: sh-rf                      # Your GHCR namespace (lowercase)
-  IMAGE_NAME: ghcr.io/ghcr.io/${{ env.GHCR_NAMESPACE }}/${{ env.ORIGINAL_REPO }}
+  IMAGE_NAME: ghcr.io/sh-rf/remote-falcon-plugins-api
 
 jobs:
   sync-build-release:
@@ -69,6 +69,15 @@ jobs:
           else
             echo "✅ No upstream changes. Exiting."
             exit 0
+          fi
+
+      - name: Check for changes
+        id: check
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Generate version tags
