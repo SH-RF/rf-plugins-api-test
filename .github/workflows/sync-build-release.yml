@@ -9,7 +9,7 @@ env:
   ORIGINAL_OWNER: Ne0n09                     # Upstream owner
   ORIGINAL_REPO: remote-falcon-plugins-api   # Upstream repo
   GHCR_NAMESPACE: sh-rf                      # Your GHCR namespace (lowercase)
-  IMAGE_NAME: ghcr.io/sh-rf/rf-plugins-api-tets
+  IMAGE_NAME: ghcr.io/sh-rf/rf-plugins-api-test
 
 permissions:
   contents: write
@@ -101,5 +101,6 @@ jobs:
           gh release create "${{ steps.version.outputs.date_tag }}" \
             --title "Release ${{ steps.version.outputs.date_tag }}" \
             --notes "$COMMITS"
+            --repo SH-RF/rf-plugins-api-test
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
