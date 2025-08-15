@@ -55,17 +55,31 @@ jobs:
         if: steps.check.outputs.has_changes == 'true'
         id: merge
         run: |
+          # Configure Git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
           # Checkout main branch
           git checkout main
 
-          # Merge upstream, keeping our version of .github
-          git merge upstream/main --no-edit -X ours -- .github
+          # Add upstream remote
+          git remote add upstream https://github.com/${ORIGINAL_OWNER}/${ORIGINAL_REPO}.git
+          git fetch upstream main
 
-          # Merge the rest of the repo normally
-          git merge upstream/main --no-edit
+          # Merge upstream into fork
+          git merge upstream/main --no-edit || true
 
-          # Push updated main to fork
-          git push origin main      
+          # Always keep our fork's .github
+          git checkout --ours .github
+          git add .github
+
+          # Commit merge if there were changes
+          if ! git diff --cached --quiet; then
+            git commit --no-edit
+          fi
+
+          # Push updated main branch to fork
+          git push origin main
 
       - name: Generate version tags
         if: steps.check.outputs.has_changes == 'true'
