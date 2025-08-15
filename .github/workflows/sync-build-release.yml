@@ -87,12 +87,13 @@ jobs:
         with:
           context: .
           push: true
+          platforms: linux/amd64
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.date_tag }}
             ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.short_hash }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=rf-build
+          cache-to: type=gha,scope=rf-build,mode=max
 
       - name: Create GitHub Release
         if: steps.check.outputs.has_changes == 'true'
