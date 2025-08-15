@@ -56,17 +56,24 @@ jobs:
         if: steps.check.outputs.has_changes == 'true'
         id: merge
         run: |
-          # Try merge
+          set -e
+
+          # Try to merge upstream/main
           if ! git merge upstream/main --no-edit; then
             echo "⚠ Merge conflict detected. Creating pull request..."
 
-            # Abort merge to clean state
+            # Abort failed merge to clean state
             git merge --abort
 
             # Create branch for PR
             BRANCH="sync-upstream-$(date +%Y%m%d-%H%M%S)"
             git checkout -b "$BRANCH"
+
+            # Pull upstream changes without committing
             git pull upstream main --no-edit || true
+
+            # Ensure branch has at least one commit for GitHub PR
+            git commit --allow-empty -m "Prepare PR for upstream sync with conflicts"
 
             # Push branch to origin
             git push origin "$BRANCH"
@@ -81,7 +88,7 @@ jobs:
             
             exit 0
           fi
-          
+
           echo "✅ Merged upstream changes successfully."
 
           # Always keep our fork's .github
