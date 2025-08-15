@@ -7,7 +7,7 @@ on:
 
 env:
   ORIGINAL_OWNER: Ne0n09                     # Upstream owner
-  ORIGINAL_REPO: remote-falcon-external-api   # Upstream repo
+  ORIGINAL_REPO: remote-falcon-plugins-api   # Upstream repo
   GHCR_NAMESPACE: sh-rf                      # Your GHCR namespace (lowercase)
   IMAGE_NAME: ghcr.io/${GHCR_NAMESPACE}/${ORIGINAL_REPO}-test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
