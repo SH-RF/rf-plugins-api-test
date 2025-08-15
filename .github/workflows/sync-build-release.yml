@@ -9,7 +9,7 @@ env:
   ORIGINAL_OWNER: Ne0n09                     # Upstream owner
   ORIGINAL_REPO: remote-falcon-plugins-api   # Upstream repo
   GHCR_NAMESPACE: sh-rf                      # Your GHCR namespace (lowercase)
-  IMAGE_NAME: ghcr.io/sh-rf/remote-falcon-plugins-api
+  IMAGE_NAME: ghcr.io/sh-rf/rf-plugins-api-tets
 
 permissions:
   contents: write
