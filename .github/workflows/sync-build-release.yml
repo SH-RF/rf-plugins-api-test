@@ -10,6 +10,7 @@ env:
   ORIGINAL_REPO: remote-falcon-plugins-api   # Upstream repo
   GHCR_NAMESPACE: sh-rf                      # Your GHCR namespace (lowercase)
   IMAGE_NAME: ghcr.io/sh-rf/rf-plugins-api-test
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 permissions:
   contents: write
@@ -51,12 +52,37 @@ jobs:
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Merge from upstream
+      - name: Merge from upstream or create PR
         if: steps.check.outputs.has_changes == 'true'
         id: merge
         run: |
-          # Merge upstream into fork
-          git merge upstream/main --no-edit || true
+          # Try merge
+          if ! git merge upstream/main --no-edit; then
+            echo "⚠ Merge conflict detected. Creating pull request..."
+
+            # Abort merge to clean state
+            git merge --abort
+
+            # Create branch for PR
+            BRANCH="sync-upstream-$(date +%Y%m%d-%H%M%S)"
+            git checkout -b "$BRANCH"
+            git pull upstream main --no-edit || true
+
+            # Push branch to origin
+            git push origin "$BRANCH"
+
+            # Create PR via GitHub CLI
+            gh pr create \
+              --repo "${GITHUB_REPOSITORY}" \
+              --base main \
+              --head "$BRANCH" \
+              --title "Sync with upstream (conflict resolution required)" \
+              --body "Automatic sync from upstream failed due to conflicts. Please review and merge manually."
+            
+            exit 0
+          fi
+          
+          echo "✅ Merged upstream changes successfully."
 
           # Always keep our fork's .github
           git checkout --ours .github
@@ -113,5 +139,3 @@ jobs:
             --title "Release ${{ steps.version.outputs.date_tag }}" \
             --notes "$COMMITS" \
             --repo SH-RF/rf-plugins-api-test
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
