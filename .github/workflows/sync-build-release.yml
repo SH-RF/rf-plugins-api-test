@@ -1,0 +1,150 @@
+name: Sync, Build, and Release
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *" # Runs daily at 00:00 CST
+
+env:
+  ORIGINAL_OWNER: Ne0n09                     # Upstream owner
+  ORIGINAL_REPO: remote-falcon-plugins-api   # Upstream repo
+  GHCR_NAMESPACE: sh-rf                      # Your GHCR namespace (lowercase)
+  IMAGE_NAME: ghcr.io/sh-rf/rf-plugins-api-test
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+  contents: write
+  packages: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  sync-build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/${{ env.ORIGINAL_OWNER }}/${{ env.ORIGINAL_REPO }}.git || true
+
+      - name: Fetch upstream
+        run: git fetch upstream main
+
+      - name: Check for upstream changes
+        id: check
+        run: |
+          LOCAL_HASH=$(git rev-parse origin/main)
+          UPSTREAM_HASH=$(git rev-parse upstream/main)
+          if [ "$LOCAL_HASH" = "$UPSTREAM_HASH" ]; then
+            echo "✅ No upstream changes detected."
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "🔄 Changes found."
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Merge from upstream or create PR
+        if: steps.check.outputs.has_changes == 'true'
+        id: merge
+        run: |
+          CREATED_PR=false
+
+          # Try to merge upstream/main
+          if ! git merge upstream/main --no-edit; then
+            echo "⚠ Merge conflict detected. Creating pull request..."
+
+            # Abort failed merge to clean state
+            git merge --abort
+
+            # Create branch for PR
+            BRANCH="sync-upstream-$(date +%Y%m%d-%H%M%S)"
+            git checkout -b "$BRANCH"
+
+            # Pull upstream changes without committing
+            git pull upstream main --no-edit || true
+
+            # Ensure branch has at least one commit for GitHub PR
+            # git commit --allow-empty -m "Prepare PR for upstream sync with conflicts"
+            git commit -m "Prepare PR for upstream sync with conflicts"
+
+            # Push branch to origin
+            git push origin "$BRANCH"
+
+            # Create PR via GitHub CLI
+            gh pr create \
+              --repo "${GITHUB_REPOSITORY}" \
+              --base main \
+              --head "$BRANCH" \
+              --title "Sync with upstream (conflict resolution required)" \
+              --body "Automatic sync from upstream failed due to conflicts. Please review and merge manually."
+            
+            CREATED_PR=true
+          else
+            echo "✅ Merged upstream changes successfully."
+            
+            # Always keep our fork's .github
+            git checkout --ours .github
+            git add .github
+
+            # Commit merge if there were changes
+            if ! git diff --cached --quiet; then
+              git commit --no-edit
+            fi
+
+            # Push updated main branch to fork
+            git push origin main
+          fi
+          echo "created_pr=$CREATED_PR" >> $GITHUB_OUTPUT
+
+      - name: Generate version tags
+        if: steps.merge.outputs.created_pr == 'false'
+        id: version
+        run: |
+          DATE_TAG=$(TZ=America/Chicago date +'%Y.%m.%d')
+          SHORT_HASH=$(git rev-parse --short HEAD)
+          echo "date_tag=$DATE_TAG" >> $GITHUB_OUTPUT
+          echo "short_hash=$SHORT_HASH" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        if: steps.merge.outputs.created_pr == 'false'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: steps.merge.outputs.created_pr == 'false'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image with cache
+        if: steps.merge.outputs.created_pr == 'false'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.date_tag }}
+            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.short_hash }}
+          cache-from: type=gha,scope=rf-build
+          cache-to: type=gha,scope=rf-build,mode=max
+
+      - name: Create GitHub Release
+        if: steps.merge.outputs.created_pr == 'false'
+        run: |
+          COMMITS=$(git log upstream/main..origin/main --pretty=format:"- %s (%h)")
+          gh release create "${{ steps.version.outputs.date_tag }}" \
+            --title "Release ${{ steps.version.outputs.date_tag }}" \
+            --notes "$COMMITS" \
+            --repo SH-RF/rf-plugins-api-test
