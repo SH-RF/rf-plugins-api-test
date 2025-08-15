@@ -55,17 +55,6 @@ jobs:
         if: steps.check.outputs.has_changes == 'true'
         id: merge
         run: |
-          # Configure Git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Checkout main branch
-          git checkout main
-
-          # Add upstream remote
-          git remote add upstream https://github.com/${ORIGINAL_OWNER}/${ORIGINAL_REPO}.git
-          git fetch upstream main
-
           # Merge upstream into fork
           git merge upstream/main --no-edit || true
 
