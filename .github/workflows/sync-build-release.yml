@@ -101,7 +101,7 @@ jobs:
           COMMITS=$(git log upstream/main..origin/main --pretty=format:"- %s (%h)")
           gh release create "${{ steps.version.outputs.date_tag }}" \
             --title "Release ${{ steps.version.outputs.date_tag }}" \
-            --notes "$COMMITS"
+            --notes "$COMMITS" \
             --repo SH-RF/rf-plugins-api-test
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
