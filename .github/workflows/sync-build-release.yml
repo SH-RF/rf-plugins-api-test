@@ -73,7 +73,8 @@ jobs:
             git pull upstream main --no-edit || true
 
             # Ensure branch has at least one commit for GitHub PR
-            git commit --allow-empty -m "Prepare PR for upstream sync with conflicts"
+            # git commit --allow-empty -m "Prepare PR for upstream sync with conflicts"
+            git commit -m "Prepare PR for upstream sync with conflicts"
 
             # Push branch to origin
             git push origin "$BRANCH"
