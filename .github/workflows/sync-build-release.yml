@@ -9,7 +9,7 @@ env:
   ORIGINAL_OWNER: Ne0n09                     # Upstream owner
   ORIGINAL_REPO: remote-falcon-plugins-api   # Upstream repo
   GHCR_NAMESPACE: sh-rf                      # Your GHCR namespace (lowercase)
-  IMAGE_NAME: ghcr.io/${GHCR_NAMESPACE}/${ORIGINAL_REPO}-test
+  IMAGE_NAME: ghcr.io/sh-rf/remote-falcon-plugins-api-test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 permissions:
@@ -21,6 +21,8 @@ permissions:
 jobs:
   sync-upstream:
     runs-on: ubuntu-latest
+    outputs:
+      pr_created: ${{ steps.set_pr_created.outputs.pr_created }}
     steps:
       - name: Checkout fork
         uses: actions/checkout@v4
@@ -45,8 +47,6 @@ jobs:
           if git diff --quiet main upstream/main; then
             echo "✅ Already up to date. Skipping sync."
             exit 0
-          fi
-
       - name: Merge from upstream or create PR
         if: steps.check.outputs.has_changes == 'true'
         id: merge
@@ -67,7 +67,7 @@ jobs:
               --title "Sync with upstream (conflict resolution required)" \
               --body "Automatic sync from upstream failed due to conflicts. Please review and merge manually."
             
-            echo "pr_created=true" >> "$GITHUB_OUTPUT"
+            echo "pr_created=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -76,6 +76,17 @@ jobs:
           git add .github
           if ! git diff --cached --quiet; then
             git commit --no-edit
+          fi
+          git push origin main
+
+      - name: Set pr_created output
+        id: set_pr_created
+        run: |
+          if [ -f "$GITHUB_OUTPUT" ] && grep -q "pr_created=true" "$GITHUB_OUTPUT"; then
+            echo "pr_created=true" >> $GITHUB_OUTPUT
+          else
+            echo "pr_created=false" >> $GITHUB_OUTPUT
+          fi
           fi
           git push origin main
 
