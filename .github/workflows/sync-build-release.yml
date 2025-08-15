@@ -33,7 +33,7 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Add upstream remote
-        run: git remote add upstream https://github.com/${{ env.ORIGINAL_OWNER }}/${{ env.ORIGINAL_REPO }}.git
+        run: git remote add upstream https://github.com/${{ env.ORIGINAL_OWNER }}/${{ env.ORIGINAL_REPO }}.git || true
 
       - name: Fetch upstream
         run: git fetch upstream main
@@ -51,14 +51,21 @@ jobs:
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Fast-forward merge from upstream
+      - name: Merge from upstream
         if: steps.check.outputs.has_changes == 'true'
         id: merge
         run: |
-          set -e
+          # Checkout main branch
           git checkout main
-          git merge --ff-only upstream/main
-          git push origin main       
+
+          # Merge upstream, keeping our version of .github
+          git merge upstream/main --no-edit -X ours -- .github
+
+          # Merge the rest of the repo normally
+          git merge upstream/main --no-edit
+
+          # Push updated main to fork
+          git push origin main      
 
       - name: Generate version tags
         if: steps.check.outputs.has_changes == 'true'
