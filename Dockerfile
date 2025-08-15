@@ -29,5 +29,4 @@ ENTRYPOINT [ \
 "-Dquarkus.otel.exporter.otlp.endpoint=${OTEL_URI}" \
 ]
 
-
-# Testing
+# Testing fork sync
