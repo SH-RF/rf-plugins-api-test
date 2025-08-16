@@ -6,17 +6,22 @@ on:
     - cron: "0 6 * * *" # Runs daily at 00:00 CST
 
 env:
-  ORIGINAL_OWNER: Ne0n09                     # Upstream owner
-  ORIGINAL_REPO: remote-falcon-plugins-api   # Upstream repo
-  GHCR_NAMESPACE: sh-rf                      # Your GHCR namespace (lowercase)
-  IMAGE_NAME: ghcr.io/sh-rf/rf-plugins-api-test
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  ORIGINAL_OWNER: "Ne0n09"                          # Upstream owner
+  ORIGINAL_REPO: "remote-falcon-plugins-api"        # Upstream repo
+  GHCR_NAMESPACE: "SH-RF"                           # GHCR namespace
+  REPO: "rf-plugins-api-test"                       # Forked repo name
+  IMAGE_NAME: "ghcr.io/${GHCR_NAMESPACE,,}/${REPO}" # Full image name with GCHR lowercased
+  GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
 permissions:
   contents: write
   packages: write
   actions: read
   pull-requests: write
+
+concurrency:
+  group: sync-build-release
+  cancel-in-progress: true
 
 jobs:
   sync-build-release:
@@ -33,16 +38,10 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Add upstream remote
-        run: git remote add upstream https://github.com/${{ env.ORIGINAL_OWNER }}/${{ env.ORIGINAL_REPO }}.git || true
-
-      - name: Fetch upstream
-        run: git fetch upstream main
-
-      - name: Check for upstream changes
+      - name: Check for upstream changes (excluding .github)
         id: check
         run: |
-          set -e
+          git remote add upstream https://github.com/${{ env.ORIGINAL_OWNER }}/${{ env.ORIGINAL_REPO }}.git || true
           git fetch upstream main
 
           # Check for changes excluding .github/
@@ -72,7 +71,7 @@ jobs:
             git checkout -b "$BRANCH"
 
             # Pull upstream changes without committing
-            git pull upstream main --no-edit || true
+            git pull --rebase upstream main || true
 
             # Ensure branch has at least one commit for GitHub PR
             # git commit --allow-empty -m "Prepare PR for upstream sync with conflicts"
@@ -145,8 +144,20 @@ jobs:
       - name: Create GitHub Release
         if: steps.merge.outputs.created_pr == 'false'
         run: |
+          # Delete GitHub release if it exists (Only one release per day)
+          gh release delete "${{ steps.version.outputs.date_tag }}" --yes || true
+
+          # Delete the remote tag if it exists
+          git push origin ":refs/tags/${{ steps.version.outputs.date_tag }}" || true
+
           COMMITS=$(git log upstream/main..origin/main --pretty=format:"- %s (%h)")
+          NOTES="Docker Images published:\n\
+          - \`${{ env.IMAGE_NAME }}:latest\`\n\
+          - \`${{ env.IMAGE_NAME }}:${{ steps.version.outputs.date_tag }}\`\n\
+          - \`${{ env.IMAGE_NAME }}:${{ steps.version.outputs.short_hash }}\`\n\n\
+          Changes:\n$COMMITS"
+
           gh release create "${{ steps.version.outputs.date_tag }}" \
             --title "Release ${{ steps.version.outputs.date_tag }}" \
-            --notes "$COMMITS" \
-            --repo SH-RF/rf-plugins-api-test
+            --notes "$NOTES" \
+            --repo ${{ env.GHCR_NAMESPACE }}/${{ env.REPO }}
