@@ -3,14 +3,13 @@ name: Sync, Build, and Release
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 6 * * *" # Runs daily at 00:00 CST
+    - cron: "0 4 * * *" # Runs daily at 11:00 PM CST
 
 env:
   ORIGINAL_OWNER: "Ne0n09"                          # Upstream owner
   ORIGINAL_REPO: "remote-falcon-plugins-api"        # Upstream repo
   GHCR_NAMESPACE: "SH-RF"                           # GHCR namespace
   REPO: "rf-plugins-api-test"                       # Forked repo name
-  IMAGE_NAME: "ghcr.io/${GHCR_NAMESPACE,,}/${REPO}" # Full image name with GCHR lowercased
   GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
 permissions:
@@ -114,6 +113,12 @@ jobs:
           SHORT_HASH=$(git rev-parse --short HEAD)
           echo "date_tag=$DATE_TAG" >> $GITHUB_OUTPUT
           echo "short_hash=$SHORT_HASH" >> $GITHUB_OUTPUT
+
+      - name: Set IMAGE_NAME with lowercase GHCR_NAMESPACE
+        id: set_image
+        run: |
+          IMAGE_NAME="ghcr.io/${GHCR_NAMESPACE,,}/${REPO}"
+          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         if: steps.merge.outputs.created_pr == 'false'
