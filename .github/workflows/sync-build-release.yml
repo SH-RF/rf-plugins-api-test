@@ -42,14 +42,16 @@ jobs:
       - name: Check for upstream changes
         id: check
         run: |
-          LOCAL_HASH=$(git rev-parse origin/main)
-          UPSTREAM_HASH=$(git rev-parse upstream/main)
-          if [ "$LOCAL_HASH" = "$UPSTREAM_HASH" ]; then
-            echo "✅ No upstream changes detected."
+          set -e
+          git fetch upstream main
+
+          # Check for changes excluding .github/
+          if git diff --quiet main upstream/main -- . ':(exclude).github'; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "✅ No upstream changes (excluding .github)."
           else
-            echo "🔄 Changes found."
             echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "⚡ Upstream changes detected."
           fi
 
       - name: Merge from upstream or create PR
