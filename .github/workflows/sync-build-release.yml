@@ -3,7 +3,7 @@ name: Sync, Build, and Release
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 4 * * *" # Runs daily at 11:00 PM CST
+    - cron: "0 4 * * *" # Runs daily at 11:00 PM CDT
 
 env:
   ORIGINAL_OWNER: "Ne0n09"                          # Upstream owner
@@ -156,11 +156,13 @@ jobs:
           git push origin ":refs/tags/${{ steps.version.outputs.date_tag }}" || true
 
           COMMITS=$(git log upstream/main..origin/main --pretty=format:"- %s (%h)")
-          NOTES="Docker Images published:\n\
-          - \`${{ env.IMAGE_NAME }}:latest\`\n\
-          - \`${{ env.IMAGE_NAME }}:${{ steps.version.outputs.date_tag }}\`\n\
-          - \`${{ env.IMAGE_NAME }}:${{ steps.version.outputs.short_hash }}\`\n\n\
-          Changes:\n$COMMITS"
+          NOTES="Docker Images published:
+          - \`${{ env.IMAGE_NAME }}:latest\`
+          - \`${{ env.IMAGE_NAME }}:${{ steps.version.outputs.date_tag }}\`
+          - \`${{ env.IMAGE_NAME }}:${{ steps.version.outputs.short_hash }}\`
+
+          Changes:
+          $COMMITS"
 
           gh release create "${{ steps.version.outputs.date_tag }}" \
             --title "Release ${{ steps.version.outputs.date_tag }}" \
